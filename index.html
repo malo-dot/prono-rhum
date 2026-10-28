@@ -27,7 +27,9 @@ input[type=checkbox]{accent-color:var(--navy);width:22px;height:22px}
 
 header.top{position:sticky;top:0;z-index:5;background:var(--navy-d);color:var(--white)}
 header.top::after{content:"";display:block;height:6px;background:linear-gradient(90deg,var(--teal) 0 33.3%,var(--yellow) 33.3% 66.6%,#fff 66.6%)}
-header.top .wrap{display:flex;align-items:center;justify-content:space-between;padding:10px 16px}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px}
+.brand{min-width:0;white-space:nowrap}.who{min-width:0}.who .wn{min-width:0;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:420px){.who .pill{display:none}.brand{font-size:13px;gap:6px}.brand svg{width:24px;height:24px}header.top .wrap{padding:10px 12px}}
 .brand{font-weight:900;letter-spacing:.8px;text-transform:uppercase;display:flex;align-items:center;gap:10px;font-size:15px}
 .brand span{color:var(--yellow)}
 .brand .logo{height:30px;width:auto}
@@ -133,7 +135,8 @@ details.rules li{margin:3px 0}
 /* ===== habillage v4 : coques, rails, fond graphique ===== */
 :root{--display:'Archivo Black','Outfit',system-ui,sans-serif}
 html{background:var(--navy-d)}
-body{background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900' preserveAspectRatio='xMidYMid slice'><rect width='1600' height='900' fill='%2328385c'/><circle cx='1530' cy='40' r='210' fill='%23f9ed37' opacity='.95'/><path d='M-40 900 L260 380 L560 900Z' fill='%2382bebf' opacity='.6'/><path d='M120 900 L330 560 L540 900Z' fill='%231b2745' opacity='.4'/><path d='M0 760 Q200 700 400 760 T800 760 T1200 760 T1600 760 V900 H0Z' fill='%231b2745' opacity='.55'/><path d='M0 820 Q200 770 400 820 T800 820 T1200 820 T1600 820 V900 H0Z' fill='%2382bebf' opacity='.5'/></svg>") center/cover fixed no-repeat}
+body{background:#28385c}
+body::before{content:"";position:fixed;inset:0;z-index:-2;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900' preserveAspectRatio='xMidYMid slice'><rect width='1600' height='900' fill='%2328385c'/><circle cx='1530' cy='40' r='210' fill='%23f9ed37' opacity='.95'/><path d='M-40 900 L260 380 L560 900Z' fill='%2382bebf' opacity='.6'/><path d='M120 900 L330 560 L540 900Z' fill='%231b2745' opacity='.4'/><path d='M0 760 Q200 700 400 760 T800 760 T1200 760 T1600 760 V900 H0Z' fill='%231b2745' opacity='.55'/><path d='M0 820 Q200 770 400 820 T800 820 T1200 820 T1600 820 V900 H0Z' fill='%2382bebf' opacity='.5'/></svg>") center/cover no-repeat}
 body::after{content:"";position:fixed;inset:0;z-index:-1;background-image:radial-gradient(rgba(255,255,255,.06) 1.2px,transparent 1.2px);background-size:18px 18px}
 h1,h2{font-family:var(--display);font-weight:400;letter-spacing:.2px}
 h2{font-size:24px;line-height:1.05}
@@ -200,6 +203,11 @@ html,body{overflow-x:hidden}
 .u{flex-wrap:wrap}
 .u .row{margin-left:auto}
 .u>div:first-child{min-width:0;flex:1 1 150px}
+.sheet-bg.modal{align-items:center;justify-content:center;padding:16px;z-index:60}
+.dlg{width:100%;max-width:420px;border-radius:12px;border-top:5px solid var(--yellow);max-height:90vh;overflow:auto}
+.dlg input{font-size:16px}
+.dlgbtns{display:flex;gap:10px;margin-top:14px}
+.dlgbtns .btn{flex:1}
 </style>
 </head>
 <body>
@@ -328,6 +336,26 @@ function tick() {
 }
 
 
+/* ============ BOÎTES DE DIALOGUE (remplacent prompt/confirm/alert, bloqués dans certains navigateurs intégrés) ============ */
+function uiAsk(o) {
+  return new Promise(resolve => {
+    const bg = document.createElement('div');
+    bg.className = 'sheet-bg modal';
+    const fields = (o.fields || []).map((f, i) => '<div class="field"><label for="dlg' + i + '">' + esc(f.label) + '</label><input id="dlg' + i + '" type="' + (f.type || 'text') + '" value="' + esc(f.value || '') + '" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"></div>').join('');
+    bg.innerHTML = '<div class="sheet dlg" role="dialog" aria-modal="true"><h3>' + esc(o.title) + '</h3>' + (o.text ? '<p class="mute" style="margin:8px 0">' + esc(o.text) + '</p>' : '') + fields +
+      '<div class="dlgbtns">' + (o.cancel === false ? '' : '<button class="btn sec" data-x="0">Annuler</button>') + '<button class="btn' + (o.danger ? ' danger' : '') + '" data-x="1">' + esc(o.ok || 'OK') + '</button></div></div>';
+    document.body.appendChild(bg);
+    const done = v => { document.removeEventListener('keydown', onKey); bg.remove(); resolve(v); };
+    const val = () => (o.fields && o.fields.length) ? o.fields.map((f, i) => bg.querySelector('#dlg' + i).value) : true;
+    const onKey = e => { if (e.key === 'Escape' && o.cancel !== false) done(null); else if (e.key === 'Enter') { e.preventDefault(); done(val()); } };
+    document.addEventListener('keydown', onKey);
+    bg.querySelectorAll('[data-x]').forEach(b => b.onclick = () => done(b.dataset.x === '1' ? val() : null));
+    const first = bg.querySelector('input'); if (first) setTimeout(() => first.focus(), 50);
+  });
+}
+const uiConfirm = (title, text, ok) => uiAsk({ title: title, text: text, ok: ok || 'Confirmer', danger: true }).then(v => v === true);
+const uiAlert = (title, text) => uiAsk({ title: title, text: text, cancel: false });
+
 /* ============ ÉLÉMENTS GRAPHIQUES ============ */
 const BOAT = {
   ULTIM: '<path d="M8 30h48l-4 5H12z" fill="#28385c"/><path d="M2 33h13l-2 4H4zM49 33h13l-2 4h-9z" fill="#28385c"/><path d="M11 31h42" stroke="#28385c" stroke-width="2"/><path d="M31 3h3l2 27h-7z" fill="#f9ed37" stroke="#28385c" stroke-width="1.6"/><path d="M38 12l15 18H38z" fill="#fff" stroke="#28385c" stroke-width="1.6"/>',
@@ -394,7 +422,7 @@ function render() {
   const isAdm = S.me.role === 'admin';
   app.innerHTML =
     '<header class="top"><div class="wrap"><div class="brand"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#f9ed37"/><path d="M15 29 L29 29 L22 15Z" fill="#82bebf"/><rect x="1" y="17" width="12" height="12" fill="#fff"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()">MPP <span>RDR 2026</span></div>' +
-    '<div class="who">' + esc(S.me.pseudo) + (isAdm ? ' <span class="pill">admin</span>' : (S.me.league ? ' <span class="pill">' + esc(S.me.league.name) + '</span>' : '')) + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
+    '<div class="who">' + '<span class="wn">' + esc(S.me.pseudo) + '</span>' + (isAdm ? ' <span class="pill">admin</span>' : (S.me.league ? ' <span class="pill">' + esc(S.me.league.name) + '</span>' : '')) + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
     '<div class="shell"><aside class="rail" id="raill"></aside><main class="wrap" id="main"></main><aside class="rail" id="railr"></aside></div><p class="foot">Jeu de pronos entre amis · application non officielle<br><a href="#" id="chpw" style="color:#c3cde4">Changer mon mot de passe</a></p>' +
     '<nav class="tabs"><div class="in">' +
     (isAdm ? tabBtn('admin', '■', 'Admin' + (S.adm && S.adm.requests && S.adm.requests.length ? ' 🔑' + S.adm.requests.length : '')) + tabBtn('picks', '◎', 'Test') : tabBtn('picks', '◎', 'Pronos')) + tabBtn('board', '▲', 'Joueurs') + tabBtn('chat', '✉', 'Chat') + tabBtn('race', '≋', 'Course') +
@@ -402,10 +430,11 @@ function render() {
   $('#out').onclick = () => logout();
   drawRails();
   if (!S.board && !S._railBoard) { S._railBoard = true; api('board', { scope: S.scope }).then(b => { if (!S.board) S.board = b; drawRails(); }).catch(() => {}); }
-  $('#chpw').onclick = e => {
+  $('#chpw').onclick = async e => {
     e.preventDefault();
-    const old = (prompt('Mot de passe actuel :') || '').trim(); if (!old) return;
-    const nw = (prompt('Nouveau mot de passe (6 caractères minimum, sans espace) :') || '').trim(); if (!nw) return;
+    const v = await uiAsk({ title: 'Changer mon mot de passe', fields: [{ label: 'Mot de passe actuel', type: 'password' }, { label: 'Nouveau mot de passe (6 caractères minimum, sans espace)', type: 'password' }], ok: 'Changer' });
+    if (!v) return;
+    const old = v[0].trim(), nw = v[1].trim(); if (!old || !nw) return;
     guard(async () => { const r = await api('changePassword', { pin: old, newPin: nw }); S.token = r.token; lsSet('prono_token', r.token); toast('Mot de passe changé ✔'); });
   };
   document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; if (S.tab === 'admin') S.adm = null; render(); });
@@ -452,7 +481,7 @@ function bindAuth() {
     e.preventDefault();
     const pseudo = $('#a_pseudo').value.trim();
     if (!pseudo) { toast('Entre d\'abord ton pseudo ci-dessus', true); return; }
-    guard(async () => { await api('forgot', { pseudo: pseudo }); alert('Demande envoyée à l\'admin. Il te contactera par téléphone avec un nouveau mot de passe, que tu pourras changer ensuite dans l\'application.'); });
+    guard(async () => { await api('forgot', { pseudo: pseudo }); await uiAlert('Demande envoyée', 'L\'admin va te contacter par téléphone avec un nouveau mot de passe, que tu pourras changer ensuite dans l\'application.'); });
   };
   document.querySelectorAll('.card input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') go(); });
 }
@@ -655,7 +684,7 @@ function drawMsgs(r) {
   if (near || S._chatFirst) box.scrollTop = box.scrollHeight;
   S._chatFirst = false;
   box.querySelectorAll('[data-cd]').forEach(b => b.onclick = () => guard(async () => {
-    if (!confirm('Supprimer ce message ?')) return;
+    if (!(await uiConfirm('Supprimer ce message ?', '', 'Supprimer'))) return;
     await api('chatDelete', { id: b.dataset.cd }); S.chatKey = ''; await pollChat();
   }));
 }
@@ -798,13 +827,13 @@ async function viewAdmin() {
   });
   document.querySelectorAll('[data-le]').forEach(b => b.onclick = () => guard(async () => {
     const l = a.leagues.find(x => x.id === b.dataset.le);
-    const name = prompt('Nom de la ligue :', l.name); if (name === null) return;
-    const code = prompt('Code d\'inscription :', l.code); if (code === null) return;
-    await api('adminLeagueSave', { id: l.id, name: name, code: code });
+    const v = await uiAsk({ title: 'Modifier la ligue', fields: [{ label: 'Nom de la ligue', value: l.name }, { label: 'Code d\'inscription', value: l.code }], ok: 'Enregistrer' });
+    if (!v) return;
+    await api('adminLeagueSave', { id: l.id, name: v[0], code: v[1] });
     S.adm = null; S.board = null; S.me = (await api('me')).me; toast('Ligue modifiée ✔'); viewAdmin();
   }));
   document.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => guard(async () => {
-    if (!confirm('Supprimer cette ligue ?')) return;
+    if (!(await uiConfirm('Supprimer cette ligue ?', '', 'Supprimer'))) return;
     await api('adminLeagueDelete', { id: b.dataset.ld }); S.adm = null; toast('Ligue supprimée'); viewAdmin();
   }));
   document.querySelectorAll('[data-mv]').forEach(sel => sel.onchange = () => guard(async () => {
@@ -812,20 +841,20 @@ async function viewAdmin() {
     S.adm = null; S.board = null; toast('Joueur déplacé ✔'); viewAdmin();
   }));
   document.querySelectorAll('[data-rq]').forEach(b => b.onclick = () => guard(async () => {
-    const pin = prompt('Nouveau mot de passe pour ' + b.dataset.rq + ' (6 caractères minimum, sans espace). Envoie-le lui ensuite :');
-    if (!pin) return;
-    await api('adminResetPin', { pseudo: b.dataset.rq, pin: pin.trim() }); S.adm = null; toast('Mot de passe défini ✔'); viewAdmin();
+    const v = await uiAsk({ title: 'Nouveau mot de passe pour ' + b.dataset.rq, text: '6 caractères minimum, sans espace. Envoie-le lui ensuite par SMS.', fields: [{ label: 'Mot de passe', type: 'text' }], ok: 'Définir' });
+    if (!v || !v[0].trim()) return;
+    await api('adminResetPin', { pseudo: b.dataset.rq, pin: v[0].trim() }); S.adm = null; toast('Mot de passe défini ✔'); viewAdmin();
   }));
   document.querySelectorAll('[data-rd]').forEach(b => b.onclick = () => guard(async () => {
     await api('adminDismissRequest', { pseudo: b.dataset.rd }); S.adm = null; viewAdmin();
   }));
   document.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => guard(async () => {
-    const pin = prompt('Nouveau mot de passe pour ' + b.dataset.pin + ' (6 caractères minimum) :');
-    if (!pin) return;
-    await api('adminResetPin', { pseudo: b.dataset.pin, pin: pin }); toast('Mot de passe modifié ✔');
+    const v = await uiAsk({ title: 'Nouveau mot de passe pour ' + b.dataset.pin, text: '6 caractères minimum, sans espace.', fields: [{ label: 'Mot de passe', type: 'text' }], ok: 'Définir' });
+    if (!v || !v[0].trim()) return;
+    await api('adminResetPin', { pseudo: b.dataset.pin, pin: v[0].trim() }); toast('Mot de passe modifié ✔');
   }));
   document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
-    if (!confirm('Supprimer ' + b.dataset.del + ' et ses pronos ?')) return;
+    if (!(await uiConfirm('Supprimer ' + b.dataset.del + ' ?', 'Son compte et ses pronos seront effacés.', 'Supprimer'))) return;
     await api('adminDeleteUser', { pseudo: b.dataset.del }); S.adm = null; S.board = null; toast('Joueur supprimé'); viewAdmin();
   }));
 }
