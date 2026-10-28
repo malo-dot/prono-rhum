@@ -131,7 +131,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 
 const S = {
   token: null, me: null, cfg: null, picks: {}, draft: {}, board: null,
-  tab: 'picks', raceClass: null, authMode: 'login', adm: null, open: null, offset: 0, busy: false
+  tab: 'picks', detail: {}, bkey: '', raceClass: null, authMode: 'login', adm: null, open: null, offset: 0, busy: false
 };
 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -143,15 +143,31 @@ function toast(msg, err) {
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 3200);
 }
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const WRITES = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh'];
+
 async function api(action, data) {
   if (!API_URL || API_URL.indexOf('COLLE_ICI') === 0) throw new Error('API_URL non configurée dans index.html');
-  const r = await fetch(API_URL, {
-    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ action: action, token: S.token }, data || {}))
-  });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Erreur');
-  return j.data;
+  const isWrite = WRITES.indexOf(action) !== -1;
+  const body = JSON.stringify(Object.assign({ action: action, token: S.token }, data || {}));
+  for (let i = 0; i < 4; i++) {
+    try {
+      const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body });
+      const j = await r.json();
+      if (!j.ok) {
+        // "BUSY" = le serveur n'a RIEN exécuté (file d'attente pleine) : on peut réessayer sans risque, même en écriture
+        if (/BUSY/.test(j.error || '') && i < 3) { await sleep(700 * (i + 1) + Math.random() * 700); continue; }
+        throw new Error((j.error || 'Erreur').replace(/^BUSY : /, ''));
+      }
+      return j.data;
+    } catch (e) {
+      // coupure réseau / page de surcharge Google : on réessaie les lectures, pas les écritures (évite les doublons)
+      const transient = e.name === 'TypeError' || e.name === 'SyntaxError';
+      if (transient && !isWrite && i < 3) { await sleep(800 * (i + 1) + Math.random() * 800); continue; }
+      if (transient) throw new Error('Le serveur est très sollicité en ce moment, réessaie dans quelques secondes.');
+      throw e;
+    }
+  }
 }
 
 async function guard(fn) {
@@ -205,7 +221,9 @@ async function boot() {
   }
   render();
   setInterval(tick, 1000);
-  setInterval(() => { if (S.me && (S.tab === 'board' || S.tab === 'race')) refreshBoard(true); }, 60000);
+  (function loop() {   // rafraîchissement doux : 45-75 s, seulement si la page est visible (évite que tout le monde tape en même temps)
+    setTimeout(() => { if (S.me && !document.hidden && (S.tab === 'board' || S.tab === 'race')) refreshBoard(true); loop(); }, 45000 + Math.random() * 30000);
+  })();
 }
 
 function tick() {
@@ -347,6 +365,8 @@ function openPicker(cid, idx) {
 async function refreshBoard(quiet) {
   await guard(async () => {
     S.board = await api('board');
+    const k = JSON.stringify(S.board.updatedAt) + S.board.locked;
+    if (k !== S.bkey) { S.bkey = k; S.detail = {}; }
     if (S.tab === 'board') viewBoard(); else if (S.tab === 'race') viewRace();
   });
 }
@@ -365,22 +385,36 @@ function viewBoard() {
     h += '<button class="lb ' + (x.pseudo === S.me.pseudo ? 'me' : '') + '" data-p="' + esc(x.pseudo) + '"><span class="r">' + medal + '</span>' + mv +
       '<span class="nm">' + esc(x.pseudo) + '</span><span class="pts">' + x.total + ' <small>pts</small></span></button>';
     if (S.open === x.pseudo) {
-      if (x.details) {
+      const d = S.detail[x.pseudo];
+      if (!b.locked) h += '<div class="card mute">Pronos visibles au départ.</div>';
+      else if (!d) { h += '<div class="card mute">Chargement…</div>'; loadDetail(x.pseudo); }
+      else {
         h += '<div class="card det">';
         S.cfg.classes.forEach(c => {
-          const d = x.details[c.id];
-          h += '<div class="cl">' + esc(c.label) + ' · ' + d.pts + ' pts</div>';
-          d.detail.forEach((l, i) => {
+          const dc = d[c.id];
+          h += '<div class="cl">' + esc(c.label) + ' · ' + dc.pts + ' pts</div>';
+          dc.detail.forEach((l, i) => {
             h += '<div class="ln"><span class="s-' + l.status + '">' + (i + 1) + '. ' + esc(l.skipper || '—') + '</span><span class="s-' + l.status + '">+' + l.pts + '</span></div>';
           });
         });
         h += '</div>';
-      } else h += '<div class="card mute">Pronos visibles au départ.</div>';
+      }
     }
   });
   $('#main').innerHTML = h;
   $('#rf').onclick = () => refreshBoard();
   document.querySelectorAll('.lb').forEach(l => l.onclick = () => { S.open = S.open === l.dataset.p ? null : l.dataset.p; viewBoard(); });
+}
+
+async function loadDetail(pseudo) {
+  if (S._ld === pseudo) return;
+  S._ld = pseudo;
+  await guard(async () => {
+    const r = await api('detail', { pseudo: pseudo });
+    S.detail[pseudo] = r.details || {};
+  });
+  S._ld = null;
+  if (S.tab === 'board' && S.detail[pseudo]) viewBoard();
 }
 
 /* ============ COURSE (LIVE) ============ */

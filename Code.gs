@@ -1,5 +1,5 @@
 /**
- * PRONO DU RHUM — backend Google Apps Script
+ * MPP RDR 2026 — backend Google Apps Script
  * Route du Rhum 2026 : paris sur le classement (Ultim, Ocean Fifty, IMOCA, Class40)
  *
  * MISE EN PLACE (voir README) :
@@ -83,9 +83,9 @@ const SKIPPERS_SEED = {
 // ====== OUTILS FEUILLES ======
 const SHEETS = {
   Config:   ['key', 'value'],
-  Users:    ['pseudo', 'salt', 'hash', 'role', 'token', 'createdAt', 'active'],
+  Users:    ['pseudo', 'salt', 'hash', 'role', 'createdAt', 'active'],
   Skippers: ['class', 'name', 'boat'],
-  Picks:    ['pseudo', 'class', 'rank', 'skipper', 'updatedAt'],
+  Picks:    ['pseudo', 'json', 'updatedAt'],   // 1 ligne par joueur
   Ranking:  ['class', 'rank', 'skipper', 'updatedAt'],
   Prev:     ['pseudo', 'rank']
 };
@@ -124,19 +124,43 @@ function appendRow_(name, obj) {
   sheet_(name).appendRow(head.map(h => (obj[h] === undefined ? '' : obj[h])));
 }
 
+// ====== CACHE (partagé entre tous les joueurs : évite de relire le Sheet à chaque requête) ======
+function cacheGet_(k) { try { const v = CacheService.getScriptCache().get(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function cachePut_(k, v, ttl) { try { const s = JSON.stringify(v); if (s.length < 90000) CacheService.getScriptCache().put(k, s, ttl); } catch (e) {} }
+function cacheDel_() { try { CacheService.getScriptCache().removeAll(Array.prototype.slice.call(arguments)); } catch (e) {} }
+function cached_(k, ttl, fn) {
+  let v = cacheGet_(k);
+  if (v === null) { v = fn(); cachePut_(k, v, ttl); }
+  return v;
+}
+
 function getConfig_() {
-  const c = {};
-  rows_('Config').forEach(r => (c[r.key] = String(r.value)));
-  return c;
+  return cached_('cfg', 300, () => {
+    const c = {};
+    rows_('Config').forEach(r => (c[r.key] = String(r.value)));
+    return c;
+  });
 }
 
 function setConfig_(key, value) {
   const sh = sheet_('Config');
   const v = sh.getDataRange().getValues();
+  let done = false;
   for (let i = 1; i < v.length; i++) {
-    if (v[i][0] === key) { sh.getRange(i + 1, 2).setValue(value); return; }
+    if (v[i][0] === key) { sh.getRange(i + 1, 2).setValue(value); done = true; break; }
   }
-  sh.appendRow([key, value]);
+  if (!done) sh.appendRow([key, value]);
+  cacheDel_('cfg', 'cfgpub', 'board');
+}
+
+function usersMap_() {
+  return cached_('users', 300, () => {
+    const m = {};
+    rows_('Users').forEach(u => {
+      m[String(u.pseudo).toLowerCase()] = { pseudo: String(u.pseudo), salt: String(u.salt), hash: String(u.hash), role: u.role, createdAt: u.createdAt, active: String(u.active) };
+    });
+    return m;
+  });
 }
 
 // ====== SETUP ======
@@ -144,13 +168,18 @@ function setup() {
   Object.keys(SHEETS).forEach(name => {
     let sh = ss_().getSheetByName(name);
     if (!sh) sh = ss_().insertSheet(name);
-    if (sh.getLastRow() === 0) {
-      sh.getRange(1, 1, 1, SHEETS[name].length).setValues([SHEETS[name]]);
+    const head = SHEETS[name];
+    const cur = sh.getLastRow() > 0 ? sh.getRange(1, 1, 1, head.length).getValues()[0] : [];
+    if (cur.join('|') !== head.join('|')) {   // première install ou ancien format : on repart propre
+      sh.clearContents();
+      sh.getRange(1, 1, 1, head.length).setValues([head]);
       sh.setFrozenRows(1);
     }
     // Texte brut pour éviter que Sheets convertisse dates / hash / « true » tout seul
-    if (name === 'Config' || name === 'Users') sh.getRange(1, 1, sh.getMaxRows(), SHEETS[name].length).setNumberFormat('@');
+    if (name === 'Config' || name === 'Users') sh.getRange(1, 1, sh.getMaxRows(), head.length).setNumberFormat('@');
   });
+  cacheDel_('cfg', 'cfgpub', 'users', 'skp', 'picks', 'rank', 'board');
+  secret_();
   const cfg = getConfig_();
   if (!cfg.leagueCode) setConfig_('leagueCode', DEFAULT_LEAGUE_CODE);
   if (!cfg.lockISO) setConfig_('lockISO', DEFAULT_LOCK_ISO);
@@ -165,8 +194,9 @@ function setup() {
   if (!rows_('Users').some(u => u.role === 'admin')) {
     if (ADMIN_PIN === 'CHANGE_MOI') throw new Error('Change ADMIN_PIN en haut du script avant setup().');
     const salt = Utilities.getUuid();
-    appendRow_('Users', { pseudo: ADMIN_PSEUDO, salt: salt, hash: hash_(ADMIN_PIN, salt), role: 'admin', token: '', createdAt: new Date().toISOString(), active: 'true' });
+    appendRow_('Users', { pseudo: ADMIN_PSEUDO, salt: salt, hash: hash_(ADMIN_PIN, salt), role: 'admin', createdAt: new Date().toISOString(), active: 'true' });
   }
+  cacheDel_('users', 'cfg', 'cfgpub', 'skp');
   return 'OK : feuilles créées, admin = ' + ADMIN_PSEUDO;
 }
 
@@ -176,15 +206,36 @@ function installTrigger() {
   ScriptApp.newTrigger('refreshRanking').timeBased().everyMinutes(15).create();
 }
 
-// ====== AUTH ======
+// ====== AUTH (jetons signés : aucune écriture dans le Sheet à la connexion) ======
 function hash_(pin, salt) {
   const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + ':' + pin, Utilities.Charset.UTF_8);
   return bytes.map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join('');
 }
 
+function secret_() {
+  const p = PropertiesService.getScriptProperties();
+  let s = p.getProperty('SECRET');
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); p.setProperty('SECRET', s); }
+  return s;
+}
+
+function sign_(msg) { return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(msg, secret_())); }
+
+function makeToken_(u) {
+  const payload = Utilities.base64EncodeWebSafe(JSON.stringify({ p: u.pseudo, s: String(u.salt).slice(0, 8), e: Date.now() + 30 * 86400000 }), Utilities.Charset.UTF_8);
+  return payload + '.' + sign_(payload);
+}
+
 function userByToken_(token) {
-  if (!token) return null;
-  return rows_('Users').find(u => u.token === token && String(u.active) === 'true') || null;
+  if (!token || String(token).indexOf('.') < 0) return null;
+  const parts = String(token).split('.');
+  if (sign_(parts[0]) !== parts[1]) return null;
+  let o;
+  try { o = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString()); } catch (e) { return null; }
+  if (!o || o.e < Date.now()) return null;
+  const u = usersMap_()[String(o.p).toLowerCase()];
+  if (!u || u.active !== 'true' || u.salt.slice(0, 8) !== o.s) return null;   // PIN réinitialisé ou joueur supprimé => jeton invalide
+  return u;
 }
 
 function requireUser_(b) {
@@ -200,8 +251,7 @@ function requireAdmin_(b) {
 }
 
 function isLocked_() {
-  const cfg = getConfig_();
-  return new Date().getTime() >= new Date(cfg.lockISO).getTime();
+  return new Date().getTime() >= new Date(getConfig_().lockISO).getTime();
 }
 
 function cleanPseudo_(p) { return String(p || '').trim().replace(/\s+/g, ' '); }
@@ -212,62 +262,68 @@ function register_(b) {
   if (pseudo.length < 2 || pseudo.length > 20) throw new Error('Pseudo : 2 à 20 caractères.');
   if (!/^[A-Za-z0-9]{4,8}$/.test(pin)) throw new Error('Code PIN : 4 à 8 caractères (lettres/chiffres).');
   if (String(b.code || '').trim().toUpperCase() !== getConfig_().leagueCode.toUpperCase()) throw new Error('Code de ligue incorrect.');
-  const users = rows_('Users');
-  if (users.some(u => u.pseudo.toLowerCase() === pseudo.toLowerCase())) throw new Error('Ce pseudo est déjà pris.');
+  if (rows_('Users').some(u => String(u.pseudo).toLowerCase() === pseudo.toLowerCase())) throw new Error('Ce pseudo est déjà pris.');
   const salt = Utilities.getUuid();
-  const token = Utilities.getUuid();
-  appendRow_('Users', { pseudo: pseudo, salt: salt, hash: hash_(pin, salt), role: 'player', token: token, createdAt: new Date().toISOString(), active: 'true' });
-  return { token: token, me: { pseudo: pseudo, role: 'player' } };
+  appendRow_('Users', { pseudo: pseudo, salt: salt, hash: hash_(pin, salt), role: 'player', createdAt: new Date().toISOString(), active: 'true' });
+  cacheDel_('users', 'board');
+  return { token: makeToken_({ pseudo: pseudo, salt: salt }), me: { pseudo: pseudo, role: 'player' } };
 }
 
 function login_(b) {
-  const pseudo = cleanPseudo_(b.pseudo).toLowerCase();
-  const users = rows_('Users');
-  const u = users.find(x => x.pseudo.toLowerCase() === pseudo && String(x.active) === 'true');
-  if (!u || hash_(String(b.pin || ''), u.salt) !== u.hash) throw new Error('Pseudo ou PIN incorrect.');
-  const token = Utilities.getUuid();
-  u.token = token;
-  replaceRows_('Users', users.map(x => (x.pseudo === u.pseudo ? u : x)));
-  return { token: token, me: { pseudo: u.pseudo, role: u.role } };
+  const key = cleanPseudo_(b.pseudo).toLowerCase();
+  const fk = 'fail_' + key.replace(/[^a-z0-9]/g, '_').slice(0, 60);
+  const cache = CacheService.getScriptCache();
+  const fails = Number(cache.get(fk) || 0);
+  if (fails >= 8) throw new Error('Trop d\'essais. Réessaie dans 5 minutes.');
+  const u = usersMap_()[key];
+  if (!u || u.active !== 'true' || hash_(String(b.pin || ''), u.salt) !== u.hash) {
+    cache.put(fk, String(fails + 1), 300);
+    throw new Error('Pseudo ou PIN incorrect.');
+  }
+  cache.remove(fk);
+  return { token: makeToken_(u), me: { pseudo: u.pseudo, role: u.role } };
 }
 
 // ====== DONNÉES ======
 function skippersByClass_() {
-  const out = {};
-  CLASSES.forEach(c => (out[c.id] = []));
-  rows_('Skippers').forEach(s => { if (out[s.class]) out[s.class].push({ name: s.name, boat: s.boat }); });
-  return out;
+  return cached_('skp', 600, () => {
+    const out = {};
+    CLASSES.forEach(c => (out[c.id] = []));
+    rows_('Skippers').forEach(s => { if (out[s.class]) out[s.class].push({ name: s.name, boat: s.boat }); });
+    return out;
+  });
 }
 
-function classById_(id) { return CLASSES.find(c => c.id === id); }
-
 function rankingByClass_() {
-  const out = {}, upd = {};
-  CLASSES.forEach(c => (out[c.id] = []));
-  rows_('Ranking').sort((a, b) => a.rank - b.rank).forEach(r => {
-    if (out[r.class]) { out[r.class].push(r.skipper); upd[r.class] = r.updatedAt; }
+  return cached_('rank', 30, () => {
+    const out = {}, upd = {};
+    CLASSES.forEach(c => (out[c.id] = []));
+    rows_('Ranking').sort((a, b) => a.rank - b.rank).forEach(r => {
+      if (out[r.class]) { out[r.class].push(r.skipper); upd[r.class] = r.updatedAt; }
+    });
+    return { ranking: out, updatedAt: upd };
   });
-  return { ranking: out, updatedAt: upd };
 }
 
 function picksByUser_() {
-  const out = {};
-  rows_('Picks').forEach(p => {
-    out[p.pseudo] = out[p.pseudo] || {};
-    out[p.pseudo][p.class] = out[p.pseudo][p.class] || [];
-    out[p.pseudo][p.class][p.rank - 1] = p.skipper;
+  return cached_('picks', 60, () => {
+    const out = {};
+    rows_('Picks').forEach(r => { try { out[r.pseudo] = JSON.parse(r.json); } catch (e) {} });
+    return out;
   });
-  return out;
+}
+
+function finals_() {
+  const cfg = getConfig_(), f = {};
+  CLASSES.forEach(c => (f[c.id] = cfg['final_' + c.id] === 'true'));
+  return f;
 }
 
 function config_() {
-  const cfg = getConfig_();
-  const finals = {};
-  CLASSES.forEach(c => (finals[c.id] = cfg['final_' + c.id] === 'true'));
-  return {
-    classes: CLASSES, skippers: skippersByClass_(), lockISO: cfg.lockISO,
-    serverNow: new Date().toISOString(), scoring: SCORING, finals: finals
-  };
+  const pub = cached_('cfgpub', 120, () => ({
+    classes: CLASSES, skippers: skippersByClass_(), lockISO: getConfig_().lockISO, scoring: SCORING, finals: finals_()
+  }));
+  return Object.assign({ serverNow: new Date().toISOString() }, pub);
 }
 
 // ====== SCORES ======
@@ -295,7 +351,7 @@ function scoreClass_(picks, actual, n) {
 }
 
 function leaderboard_() {
-  const users = rows_('Users').filter(u => String(u.active) === 'true');
+  const users = Object.keys(usersMap_()).map(k => usersMap_()[k]).filter(u => u.active === 'true');
   const picks = picksByUser_();
   const rk = rankingByClass_().ranking;
   const list = users.map(u => {
@@ -307,7 +363,7 @@ function leaderboard_() {
       total += sc.pts;
       exacts += sc.detail.filter(d => d.status === 'exact').length;
     });
-    return { pseudo: u.pseudo, total: total, exacts: exacts, byClass: byClass, hasPicks: !!picks[u.pseudo] };
+    return { pseudo: u.pseudo, total: total, exacts: exacts, byClass: byClass };
   });
   list.sort((a, b) => b.total - a.total || b.exacts - a.exacts || a.pseudo.localeCompare(b.pseudo));
   list.forEach((x, i) => {
@@ -327,48 +383,60 @@ function savePicks_(b) {
   if (isLocked_()) throw new Error('Les pronos sont verrouillés (la course a démarré).');
   const sk = skippersByClass_();
   const incoming = b.picks || {};
-  let all = rows_('Picks').filter(p => p.pseudo !== u.pseudo);
-  const mine = rows_('Picks').filter(p => p.pseudo === u.pseudo);
-  const now = new Date().toISOString();
-  const kept = [];
+  const sh = sheet_('Picks');
+  const last = sh.getLastRow();
+  const names = last > 1 ? sh.getRange(2, 1, last - 1, 1).getValues().map(r => r[0]) : [];
+  const idx = names.indexOf(u.pseudo);
+  let merged = {};
+  if (idx >= 0) { try { merged = JSON.parse(sh.getRange(idx + 2, 2).getValue() || '{}'); } catch (e) { merged = {}; } }
   CLASSES.forEach(c => {
     const arr = incoming[c.id];
-    if (arr === undefined) { mine.filter(p => p.class === c.id).forEach(p => kept.push(p)); return; }
+    if (arr === undefined) return;
     const filled = arr.filter(Boolean);
-    if (filled.length === 0) return;
+    if (filled.length === 0) { delete merged[c.id]; return; }
     if (filled.length !== c.n || arr.length !== c.n) throw new Error(c.label + ' : il faut choisir exactement ' + c.n + ' skippers.');
     if (new Set(filled).size !== filled.length) throw new Error(c.label + ' : un skipper est choisi deux fois.');
     filled.forEach(s => { if (!sk[c.id].some(x => x.name === s)) throw new Error(c.label + ' : skipper inconnu (' + s + ').'); });
-    arr.forEach((s, i) => kept.push({ pseudo: u.pseudo, class: c.id, rank: i + 1, skipper: s, updatedAt: now }));
+    merged[c.id] = arr.slice();
   });
-  replaceRows_('Picks', all.concat(kept));
+  const row = [u.pseudo, JSON.stringify(merged), new Date().toISOString()];
+  if (idx >= 0) sh.getRange(idx + 2, 1, 1, 3).setValues([row]); else sh.appendRow(row);
+  cacheDel_('picks');
   return { ok: true };
 }
 
 function me_(b) {
   const u = requireUser_(b);
-  const picks = picksByUser_()[u.pseudo] || {};
-  return { me: { pseudo: u.pseudo, role: u.role }, picks: picks };
+  return { me: { pseudo: u.pseudo, role: u.role }, picks: picksByUser_()[u.pseudo] || {} };
 }
 
 function board_(b) {
   requireUser_(b);
-  const locked = isLocked_();
-  const prev = {};
-  rows_('Prev').forEach(p => (prev[p.pseudo] = Number(p.rank)));
-  const picks = picksByUser_();
-  const rk = rankingByClass_();
-  const list = leaderboard_().map(x => {
-    const out = {
-      pseudo: x.pseudo, rank: x.rank, total: x.total, prevRank: prev[x.pseudo] || null,
-      pointsByClass: {}
+  const s = cached_('board', 20, () => {
+    const prev = {};
+    rows_('Prev').forEach(p => (prev[p.pseudo] = Number(p.rank)));
+    const rk = rankingByClass_();
+    return {
+      board: leaderboard_().map(x => {
+        const pbc = {};
+        CLASSES.forEach(c => (pbc[c.id] = x.byClass[c.id].pts));
+        return { pseudo: x.pseudo, rank: x.rank, total: x.total, prevRank: prev[x.pseudo] || null, pointsByClass: pbc };
+      }),
+      ranking: rk.ranking, updatedAt: rk.updatedAt, finals: finals_()
     };
-    CLASSES.forEach(c => (out.pointsByClass[c.id] = x.byClass[c.id].pts));
-    // les pronos des autres ne sont visibles qu'après verrouillage
-    out.details = locked ? x.byClass : null;
-    return out;
   });
-  return { locked: locked, board: list, ranking: rk.ranking, updatedAt: rk.updatedAt, finals: config_().finals };
+  return Object.assign({ locked: isLocked_() }, s);
+}
+
+/** Détail des points d'un joueur : visible seulement après le verrouillage. */
+function detail_(b) {
+  requireUser_(b);
+  if (!isLocked_()) return { details: null };
+  const picks = picksByUser_()[b.pseudo] || {};
+  const rk = rankingByClass_().ranking;
+  const details = {};
+  CLASSES.forEach(c => (details[c.id] = scoreClass_(picks[c.id], rk[c.id].slice(0, c.n), c.n)));
+  return { details: details };
 }
 
 // ====== ACTIONS ADMIN ======
@@ -376,7 +444,7 @@ function adminGet_(b) {
   requireAdmin_(b);
   const cfg = getConfig_();
   const users = rows_('Users').map(u => ({ pseudo: u.pseudo, role: u.role, createdAt: u.createdAt, active: String(u.active) === 'true' }));
-  return { settings: { leagueCode: cfg.leagueCode, lockISO: cfg.lockISO, manualOnly: cfg.manualOnly === 'true', sourceUrl: cfg.sourceUrl || '' }, users: users, finals: config_().finals };
+  return { settings: { leagueCode: cfg.leagueCode, lockISO: cfg.lockISO, manualOnly: cfg.manualOnly === 'true', sourceUrl: cfg.sourceUrl || '' }, users: users, finals: finals_() };
 }
 
 function adminSettings_(b) {
@@ -400,7 +468,7 @@ function applyRanking_(map, finals) {
     if (map[c.id] && JSON.stringify(map[c.id]) !== JSON.stringify(cur[c.id])) changed = true;
   });
   if (changed) {
-    snapshotPrev_();
+    if (CLASSES.some(c => cur[c.id].length)) snapshotPrev_();   // pas de flèches ▲▼ au tout premier classement
     const now = new Date().toISOString();
     const out = [];
     CLASSES.forEach(c => {
@@ -408,6 +476,7 @@ function applyRanking_(map, finals) {
       list.forEach((s, i) => out.push({ class: c.id, rank: i + 1, skipper: s, updatedAt: now }));
     });
     replaceRows_('Ranking', out);
+    cacheDel_('rank', 'board');
   }
   if (finals) CLASSES.forEach(c => { if (finals[c.id] !== undefined) setConfig_('final_' + c.id, finals[c.id] ? 'true' : 'false'); });
   return changed;
@@ -435,8 +504,9 @@ function adminResetPin_(b) {
   const users = rows_('Users');
   const u = users.find(x => x.pseudo === b.pseudo);
   if (!u) throw new Error('Joueur introuvable.');
-  u.salt = Utilities.getUuid(); u.hash = hash_(pin, u.salt); u.token = '';
+  u.salt = Utilities.getUuid(); u.hash = hash_(pin, u.salt);
   replaceRows_('Users', users);
+  cacheDel_('users');
   return { ok: true };
 }
 
@@ -445,6 +515,7 @@ function adminDeleteUser_(b) {
   if (b.pseudo === me.pseudo) throw new Error('Tu ne peux pas te supprimer toi-même.');
   replaceRows_('Users', rows_('Users').filter(u => u.pseudo !== b.pseudo));
   replaceRows_('Picks', rows_('Picks').filter(p => p.pseudo !== b.pseudo));
+  cacheDel_('users', 'picks', 'board');
   return { ok: true };
 }
 
@@ -498,7 +569,7 @@ function parseSource_(text) {
 }
 
 function norm_(s) {
-  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function matchSkipper_(raw, list) {
@@ -520,6 +591,7 @@ function handle_(b) {
     case 'me':             return me_(b);
     case 'savePicks':      return savePicks_(b);
     case 'board':          return board_(b);
+    case 'detail':         return detail_(b);
     case 'adminGet':       return adminGet_(b);
     case 'adminSettings':  return adminSettings_(b);
     case 'adminSetRanking':return adminSetRanking_(b);
@@ -530,19 +602,22 @@ function handle_(b) {
   }
 }
 
-const WRITE_ACTIONS = ['register', 'login', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh'];
+// Seules les actions qui ÉCRIVENT passent par le verrou. Les lectures et les connexions ne font jamais la queue.
+const WRITE_ACTIONS = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh'];
 
 function doPost(e) {
-  let out;
+  let out, locked = false;
   const lock = LockService.getScriptLock();
   try {
     const b = JSON.parse(e.postData.contents);
-    if (WRITE_ACTIONS.indexOf(b.action) !== -1) lock.waitLock(20000);
+    if (WRITE_ACTIONS.indexOf(b.action) !== -1) {
+      try { lock.waitLock(25000); locked = true; } catch (x) { throw new Error('BUSY : Trop de monde en même temps, réessaie dans quelques secondes.'); }
+    }
     out = { ok: true, data: handle_(b) };
   } catch (err) {
     out = { ok: false, error: String(err.message || err) };
   } finally {
-    try { lock.releaseLock(); } catch (x) {}
+    if (locked) { try { lock.releaseLock(); } catch (x) {} }
   }
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
