@@ -114,6 +114,17 @@ nav.tabs button.on .ic{color:var(--teal)}
 .hidden{display:none!important}
 .u{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:2px solid rgba(40,56,92,.12)}
 .foot{text-align:center;font-size:12px;padding:8px 16px 0}
+.msgs{max-height:52vh;min-height:200px;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:2px}
+.msg{background:#eef6f6;border-radius:var(--radius);padding:8px 10px;max-width:88%;align-self:flex-start;word-break:break-word}
+.msg.mine{background:var(--teal);align-self:flex-end}
+.msg.adm{background:var(--yellow);box-shadow:2px 2px 0 var(--navy-d)}
+.msg.ann{border:2px dashed var(--navy)}
+.msg .mh{font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.msg .mt{margin-top:2px;white-space:pre-wrap}
+.msg .x{background:none;border:0;color:var(--bad);padding:0 2px;font-size:12px}
+.send{display:flex;gap:8px;margin-top:10px}
+.send .btn{width:auto}
+a.btn.wa{display:block;text-align:center;text-decoration:none;margin:10px 0}
 </style>
 </head>
 <body>
@@ -144,7 +155,7 @@ function toast(msg, err) {
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const WRITES = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser'];
+const WRITES = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser', 'chatSend', 'chatDelete'];
 
 async function api(action, data) {
   if (!API_URL || API_URL.indexOf('COLLE_ICI') === 0) throw new Error('API_URL non configurée dans index.html');
@@ -198,6 +209,7 @@ function fmtTime(iso) {
 /* ============ AUTH ============ */
 function logout(silent) {
   S.token = null; S.me = null; lsSet('prono_token', null);
+  S.board = null; S.adm = null; S.detail = {}; S.scope = undefined; S.chatLeague = null; S.open = null; S.tab = 'picks';
   if (!silent) toast('Déconnecté');
   render();
 }
@@ -211,7 +223,7 @@ async function boot() {
     if (S.token) {
       try {
         const m = await api('me');
-        S.me = m.me; S.picks = m.picks; S.draft = JSON.parse(JSON.stringify(m.picks));
+        S.me = m.me; if (S.me.role === 'admin') S.tab = 'admin'; S.picks = m.picks; S.draft = JSON.parse(JSON.stringify(m.picks));
       } catch (e) { S.token = null; lsSet('prono_token', null); }
     }
   } catch (e) {
@@ -221,6 +233,9 @@ async function boot() {
   }
   render();
   setInterval(tick, 1000);
+  (function chatLoop() {   // chat : toutes les 10-16 s, seulement si l'onglet Chat est affiché et la page visible
+    setTimeout(() => { if (S.me && !document.hidden && S.tab === 'chat') pollChat(); chatLoop(); }, 10000 + Math.random() * 6000);
+  })();
   (function loop() {   // rafraîchissement doux : 45-75 s, seulement si la page est visible (évite que tout le monde tape en même temps)
     setTimeout(() => { if (S.me && !document.hidden && (S.tab === 'board' || S.tab === 'race')) refreshBoard(true); loop(); }, 45000 + Math.random() * 30000);
   })();
@@ -252,11 +267,13 @@ function render() {
     '<div class="who">' + esc(S.me.pseudo) + (isAdm ? ' <span class="pill">admin</span>' : (S.me.league ? ' <span class="pill">' + esc(S.me.league.name) + '</span>' : '')) + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
     '<main class="wrap" id="main"></main><p class="foot">Jeu de pronos entre amis · application non officielle</p>' +
     '<nav class="tabs"><div class="in">' +
-    tabBtn('picks', '◎', 'Pronos') + tabBtn('board', '▲', 'Joueurs') + tabBtn('race', '≋', 'Course') +
-    (isAdm ? tabBtn('admin', '■', 'Admin') : '') + '</div></nav>';
+    (isAdm ? tabBtn('admin', '■', 'Admin') : tabBtn('picks', '◎', 'Pronos')) + tabBtn('board', '▲', 'Joueurs') + tabBtn('chat', '✉', 'Chat') + tabBtn('race', '≋', 'Course') +
+    '</div></nav>';
   $('#out').onclick = () => logout();
   document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
+  if (isAdm && S.tab === 'picks') S.tab = 'admin';
   if (S.tab === 'picks') viewPicks();
+  else if (S.tab === 'chat') viewChat();
   else if (S.tab === 'board') viewBoard();
   else if (S.tab === 'race') viewRace();
   else if (S.tab === 'admin' && isAdm) viewAdmin();
@@ -284,7 +301,7 @@ function bindAuth() {
       const body = { pseudo: $('#a_pseudo').value, pin: $('#a_pin').value };
       if (S.authMode === 'register') body.code = $('#a_code').value;
       const r = await api(S.authMode, body);
-      S.token = r.token; S.me = r.me; lsSet('prono_token', r.token);
+      S.token = r.token; S.me = r.me; lsSet('prono_token', r.token); if (S.me.role === 'admin') S.tab = 'admin';
       const m = await api('me'); S.picks = m.picks; S.draft = JSON.parse(JSON.stringify(m.picks));
       S.tab = 'picks'; render();
     } finally { const b = $('#a_go'); if (b) b.disabled = false; }
@@ -375,7 +392,9 @@ function viewBoard() {
   if (!S.board) { $('#main').innerHTML = '<p class="mute" style="text-align:center;padding:40px">Chargement…</p>'; refreshBoard(); return; }
   const b = S.board;
   let h = '<div class="row sp" style="margin-top:6px"><h2>Classement des joueurs</h2><button class="btn sm sec" id="rf">↻</button></div>';
-  if (b.leaguesCount > 1 && S.me.league) {
+  if (S.me.role === 'admin' && b.leagues && b.leagues.length) {
+    h += '<div class="seg"><button data-sc="all" class="' + (b.scope === 'all' ? 'on' : '') + '">Général</button>' + b.leagues.map(l => '<button data-sc="' + esc(l.id) + '" class="' + (b.scope === l.id ? 'on' : '') + '">' + esc(l.name) + '</button>').join('') + '</div>';
+  } else if (b.leaguesCount > 1 && S.me.league) {
     h += '<div class="tabsw"><button data-sc="mine" class="' + (b.scope !== 'all' ? 'on' : '') + '">' + esc(S.me.league.name) + '</button><button data-sc="all" class="' + (b.scope === 'all' ? 'on' : '') + '">Général</button></div>';
   }
   if (!b.locked) h += '<div class="card mute">Les pronos des autres joueurs seront visibles au départ de la course.</div>';
@@ -406,7 +425,7 @@ function viewBoard() {
   });
   $('#main').innerHTML = h;
   $('#rf').onclick = () => refreshBoard();
-  document.querySelectorAll('[data-sc]').forEach(t => t.onclick = () => { S.scope = t.dataset.sc === 'all' ? 'all' : undefined; S.open = null; S.board = null; viewBoard(); });
+  document.querySelectorAll('[data-sc]').forEach(t => t.onclick = () => { S.scope = S.me.role === 'admin' ? t.dataset.sc : (t.dataset.sc === 'all' ? 'all' : undefined); S.open = null; S.board = null; viewBoard(); });
   document.querySelectorAll('.lb').forEach(l => l.onclick = () => { S.open = S.open === l.dataset.p ? null : l.dataset.p; viewBoard(); });
 }
 
@@ -442,6 +461,70 @@ function viewRace() {
   document.querySelectorAll('.seg button').forEach(x => x.onclick = () => { S.raceClass = x.dataset.c; viewRace(); });
 }
 
+/* ============ CHAT ============ */
+function chatLeagueId() { return S.me.role === 'admin' ? (S.chatLeague || '') : ''; }
+function chatHtml(msgs) {
+  if (!msgs.length) return '<p class="mute" style="text-align:center;padding:24px 0">Aucun message. Lance la discussion !</p>';
+  return msgs.map(m => {
+    const mine = m.pseudo === S.me.pseudo, ann = m.league === '*';
+    const t = new Date(Number(m.id.split('-')[0]) || Date.parse(m.ts));
+    const hh = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+    return '<div class="msg ' + (mine ? 'mine' : '') + (m.role === 'admin' ? ' adm' : '') + (ann ? ' ann' : '') + '"><div class="mh"><b>' + esc(m.pseudo) + '</b>' +
+      (m.role === 'admin' ? ' <span class="pill">admin</span>' : '') + (ann ? ' <span class="pill warn">annonce</span>' : '') + ' <span class="mute">' + hh + '</span>' +
+      (S.me.role === 'admin' ? ' <button class="x" data-cd="' + esc(m.id) + '" aria-label="Supprimer">✖</button>' : '') + '</div><div class="mt">' + esc(m.text) + '</div></div>';
+  }).join('');
+}
+function drawMsgs(r) {
+  const box = $('#msgs'); if (!box) return;
+  const key = r.league + '|' + r.messages.length + '|' + (r.messages.length ? r.messages[r.messages.length - 1].id : '');
+  if (key === S.chatKey) return;
+  S.chatKey = key;
+  const near = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  box.innerHTML = chatHtml(r.messages);
+  if (near || S._chatFirst) box.scrollTop = box.scrollHeight;
+  S._chatFirst = false;
+  box.querySelectorAll('[data-cd]').forEach(b => b.onclick = () => guard(async () => {
+    if (!confirm('Supprimer ce message ?')) return;
+    await api('chatDelete', { id: b.dataset.cd }); S.chatKey = ''; await pollChat();
+  }));
+}
+async function pollChat() {
+  if (S._chatBusy) return;
+  S._chatBusy = true;
+  try {
+    const r = await api('chatGet', { league: chatLeagueId() || undefined });
+    if (S.tab === 'chat') drawMsgs(r);
+  } catch (e) { /* silencieux : on réessaiera au prochain tour */ }
+  S._chatBusy = false;
+}
+async function viewChat() {
+  const adm = S.me.role === 'admin';
+  if (adm && !(S.board && S.board.leagues)) { try { S.board = await api('board'); } catch (e) {} }
+  const leagues = adm ? ((S.board && S.board.leagues) || []) : [];
+  const lg = adm ? leagues.find(l => l.id === S.chatLeague) || leagues[0] : S.me.league;
+  if (adm && lg) S.chatLeague = lg.id;
+  let h = '<div class="row sp" style="margin-top:6px"><h2>Chat' + (lg ? ' · ' + esc(lg.name) : '') + '</h2></div>';
+  if (adm) h += '<div class="seg">' + leagues.map(l => '<button data-cl="' + esc(l.id) + '" class="' + (l.id === S.chatLeague ? 'on' : '') + '">' + esc(l.name) + '</button>').join('') + '</div>';
+  if (lg && lg.wa) h += '<a class="btn sec wa" href="' + esc(lg.wa) + '" target="_blank" rel="noopener">💬 Rejoindre le groupe WhatsApp de la ligue</a>';
+  h += '<div class="card chat"><div id="msgs" class="msgs"><p class="mute" style="text-align:center;padding:24px 0">Chargement…</p></div>' +
+    '<div class="send"><input id="c_in" maxlength="300" placeholder="Ton message…" autocomplete="off"><button class="btn sm" id="c_go">Envoyer</button></div>' +
+    (adm ? '<label class="row mute" style="margin-top:8px"><input type="checkbox" id="c_all" style="width:auto"> Annonce à toutes les ligues</label>' : '') + '</div>';
+  $('#main').innerHTML = h;
+  S.chatKey = ''; S._chatFirst = true;
+  document.querySelectorAll('[data-cl]').forEach(b => b.onclick = () => { S.chatLeague = b.dataset.cl; viewChat(); });
+  const send = () => guard(async () => {
+    const inp = $('#c_in'), text = inp.value.trim(); if (!text) return;
+    const all = adm && $('#c_all') && $('#c_all').checked;
+    inp.value = '';
+    try { await api('chatSend', { text: text, league: chatLeagueId() || undefined, all: all || undefined }); }
+    catch (e) { inp.value = text; throw e; }
+    S.chatKey = ''; S._chatFirst = true; await pollChat();
+  });
+  $('#c_go').onclick = send;
+  $('#c_in').onkeydown = e => { if (e.key === 'Enter') send(); };
+  pollChat();
+}
+
 /* ============ ADMIN ============ */
 function toLocalInput(iso) {
   const d = new Date(iso), p = n => String(n).padStart(2, '0');
@@ -465,11 +548,12 @@ async function viewAdmin() {
 
   h += '<div class="card"><h3>Ligues</h3><p class="mute">Un joueur est dans une seule ligue. Il la rejoint avec son code à l\'inscription.</p>';
   a.leagues.forEach(l => {
-    h += '<div class="u"><div><b>' + esc(l.name) + '</b><div class="mute">Code : <b>' + esc(l.code) + '</b> · ' + l.count + ' joueur' + (l.count > 1 ? 's' : '') + '</div></div>' +
+    h += '<div class="u"><div><b>' + esc(l.name) + '</b><div class="mute">Code : <b>' + esc(l.code) + '</b> · ' + l.count + ' joueur' + (l.count > 1 ? 's' : '') + (l.wa ? ' · WhatsApp ✔' : '') + '</div></div>' +
       '<div class="row"><button class="btn sm sec" data-le="' + esc(l.id) + '">Modifier</button><button class="btn sm danger" data-ld="' + esc(l.id) + '">✖</button></div></div>';
   });
   h += '<div class="field"><label>Nouvelle ligue</label><input id="n_name" placeholder="Nom (ex. Famille)" maxlength="30"></div>' +
     '<div class="field"><input id="n_code" placeholder="Code à donner (ex. FAMILLE26)" autocapitalize="characters" maxlength="20"></div>' +
+    '<div class="field"><input id="n_wa" placeholder="Lien du groupe WhatsApp (optionnel)" maxlength="200"></div>' +
     '<button class="btn" id="n_add">Créer la ligue</button></div>';
 
   h += '<div class="card"><h3>Classement officiel (saisie manuelle)</h3><p class="mute">Sert de secours ou pour corriger. Le déclencheur automatique écrase ces valeurs si le mode manuel est désactivé.</p>';
@@ -485,7 +569,7 @@ async function viewAdmin() {
 
   h += '<div class="card"><h3>Joueurs (' + a.users.length + ')</h3>';
   a.users.forEach(u => {
-    h += '<div class="u"><div><b>' + esc(u.pseudo) + '</b> ' + (u.role === 'admin' ? '<span class="pill">admin</span>' : '') + '<select data-mv="' + esc(u.pseudo) + '" style="margin-top:6px;padding:6px">' + a.leagues.map(l => '<option value="' + esc(l.id) + '"' + (l.id === u.league ? ' selected' : '') + '>' + esc(l.name) + '</option>').join('') + '</select></div>' +
+    h += '<div class="u"><div><b>' + esc(u.pseudo) + '</b> ' + (u.role === 'admin' ? '<span class="pill">admin</span>' : '') + (u.role === 'admin' ? '' : '<select data-mv="' + esc(u.pseudo) + '" style="margin-top:6px;padding:6px">' + a.leagues.map(l => '<option value="' + esc(l.id) + '"' + (l.id === u.league ? ' selected' : '') + '>' + esc(l.name) + '</option>').join('') + '</select>') + '</div>' +
       (u.role === 'admin' ? '' : '<div class="row"><button class="btn sm sec" data-pin="' + esc(u.pseudo) + '">Reset PIN</button><button class="btn sm danger" data-del="' + esc(u.pseudo) + '">✖</button></div>') + '</div>';
   });
   h += '</div>';
@@ -513,14 +597,15 @@ async function viewAdmin() {
     toast(r.changed ? 'Classement publié ✔' : 'Aucun changement');
   });
   $('#n_add').onclick = () => guard(async () => {
-    await api('adminLeagueSave', { name: $('#n_name').value, code: $('#n_code').value });
+    await api('adminLeagueSave', { name: $('#n_name').value, code: $('#n_code').value, wa: $('#n_wa').value });
     S.adm = null; S.board = null; toast('Ligue créée ✔'); viewAdmin();
   });
   document.querySelectorAll('[data-le]').forEach(b => b.onclick = () => guard(async () => {
     const l = a.leagues.find(x => x.id === b.dataset.le);
     const name = prompt('Nom de la ligue :', l.name); if (name === null) return;
     const code = prompt('Code d\'inscription :', l.code); if (code === null) return;
-    await api('adminLeagueSave', { id: l.id, name: name, code: code });
+    const wa = prompt('Lien du groupe WhatsApp (vide = aucun) :', l.wa || ''); if (wa === null) return;
+    await api('adminLeagueSave', { id: l.id, name: name, code: code, wa: wa });
     S.adm = null; S.board = null; S.me = (await api('me')).me; toast('Ligue modifiée ✔'); viewAdmin();
   }));
   document.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => guard(async () => {

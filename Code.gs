@@ -84,7 +84,8 @@ const SKIPPERS_SEED = {
 const SHEETS = {
   Config:   ['key', 'value'],
   Users:    ['pseudo', 'salt', 'hash', 'role', 'createdAt', 'active', 'league'],
-  Leagues:  ['id', 'name', 'code', 'createdAt'],
+  Leagues:  ['id', 'name', 'code', 'createdAt', 'wa'],
+  Chat:     ['id', 'league', 'pseudo', 'role', 'text', 'ts'],   // league = id de ligue, ou '*' = annonce pour tous
   Skippers: ['class', 'name', 'boat'],
   Picks:    ['pseudo', 'json', 'updatedAt'],   // 1 ligne par joueur
   Ranking:  ['class', 'rank', 'skipper', 'updatedAt'],
@@ -163,7 +164,7 @@ function delBoards_() {
 function leaguesMap_() {
   return cached_('leagues', 300, () => {
     const m = {};
-    rows_('Leagues').forEach(l => (m[String(l.id)] = { id: String(l.id), name: String(l.name), code: String(l.code) }));
+    rows_('Leagues').forEach(l => (m[String(l.id)] = { id: String(l.id), name: String(l.name), code: String(l.code), wa: String(l.wa || '') }));
     return m;
   });
 }
@@ -186,17 +187,18 @@ function setup() {
     const head = SHEETS[name];
     const cur = sh.getLastRow() > 0 ? sh.getRange(1, 1, 1, head.length).getValues()[0] : [];
     const same = cur.join('|') === head.join('|');
-    // Migration douce : « Users » gagne la colonne « league » sans perdre les comptes existants
-    const addedCol = name === 'Users' && !same && cur.slice(0, head.length - 1).join('|') === head.slice(0, -1).join('|') && !cur[head.length - 1];
+    // Migration douce : une feuille qui gagne une colonne en fin de ligne d'en-tête garde ses données
+    const k = cur.filter(x => x !== '').length;
+    const addedCol = !same && k > 0 && k < head.length && cur.slice(0, k).join('|') === head.slice(0, k).join('|');
     if (addedCol) {
-      sh.getRange(1, head.length).setValue(head[head.length - 1]);
+      sh.getRange(1, 1, 1, head.length).setValues([head]);
     } else if (!same) {   // première install ou ancien format : on repart propre
       sh.clearContents();
       sh.getRange(1, 1, 1, head.length).setValues([head]);
       sh.setFrozenRows(1);
     }
     // Texte brut pour éviter que Sheets convertisse dates / hash / codes / « true » tout seul
-    if (name === 'Config' || name === 'Users' || name === 'Leagues') sh.getRange(1, 1, sh.getMaxRows(), head.length).setNumberFormat('@');
+    if (name === 'Config' || name === 'Users' || name === 'Leagues' || name === 'Chat') sh.getRange(1, 1, sh.getMaxRows(), head.length).setNumberFormat('@');
   });
   cacheDel_('cfg', 'cfgpub', 'users', 'skp', 'picks', 'rank', 'leagues');
   secret_();
@@ -271,7 +273,7 @@ function userByToken_(token) {
 
 function meOf_(u) {
   const lg = leaguesMap_()[u.league];
-  return { pseudo: u.pseudo, role: u.role, league: lg ? { id: lg.id, name: lg.name } : null };
+  return { pseudo: u.pseudo, role: u.role, league: lg ? { id: lg.id, name: lg.name, wa: lg.wa } : null };
 }
 
 function requireUser_(b) {
@@ -392,7 +394,7 @@ function scoreClass_(picks, actual, n) {
 
 function leaderboard_(scope) {
   const um = usersMap_();
-  const users = Object.keys(um).map(k => um[k]).filter(u => u.active === 'true' && (!scope || scope === 'all' || u.league === scope));
+  const users = Object.keys(um).map(k => um[k]).filter(u => u.active === 'true' && u.role !== 'admin' && (!scope || scope === 'all' || u.league === scope));
   const picks = picksByUser_();
   const rk = rankingByClass_().ranking;
   const list = users.map(u => {
@@ -423,6 +425,7 @@ function snapshotPrev_() {
 // ====== ACTIONS JOUEUR ======
 function savePicks_(b) {
   const u = requireUser_(b);
+  if (u.role === 'admin') throw new Error('Le compte admin ne joue pas : crée un compte joueur pour participer.');
   if (isLocked_()) throw new Error('Les pronos sont verrouillés (la course a démarré).');
   const sk = skippersByClass_();
   const incoming = b.picks || {};
@@ -455,7 +458,9 @@ function me_(b) {
 
 function board_(b) {
   const u = requireUser_(b);
-  const scope = b.scope === 'all' || !u.league ? 'all' : u.league;   // un joueur voit sa ligue, ou le général
+  const lm0 = leaguesMap_();
+  // admin : ne joue pas, voit « général » ou la ligue demandée ; joueur : sa ligue, ou le général
+  const scope = u.role === 'admin' ? (lm0[b.scope] ? String(b.scope) : 'all') : (b.scope === 'all' || !u.league ? 'all' : u.league);
   const lm = leaguesMap_();
   const s = cached_('board_' + scope, 20, () => {
     const prev = {};
@@ -470,7 +475,7 @@ function board_(b) {
       ranking: rk.ranking, updatedAt: rk.updatedAt, finals: finals_()
     };
   });
-  return Object.assign({ locked: isLocked_(), scope: scope, leagueName: lm[u.league] ? lm[u.league].name : '', leaguesCount: Object.keys(lm).length }, s);
+  return Object.assign({ leagues: u.role === 'admin' ? Object.keys(lm).map(k => ({ id: lm[k].id, name: lm[k].name, wa: lm[k].wa })) : undefined, locked: isLocked_(), scope: scope, leagueName: scope !== 'all' && lm[scope] ? lm[scope].name : '', leaguesCount: Object.keys(lm).length }, s);
 }
 
 /** Détail des points d'un joueur : visible seulement après le verrouillage. */
@@ -490,14 +495,15 @@ function adminGet_(b) {
   const cfg = getConfig_();
   const users = rows_('Users').map(u => ({ pseudo: u.pseudo, role: u.role, createdAt: u.createdAt, active: String(u.active) === 'true', league: String(u.league || '') }));
   const counts = {};
-  users.forEach(u => (counts[u.league] = (counts[u.league] || 0) + 1));
-  const leagues = rows_('Leagues').map(l => ({ id: String(l.id), name: String(l.name), code: String(l.code), count: counts[String(l.id)] || 0 }));
+  users.forEach(u => { if (u.role !== 'admin') counts[u.league] = (counts[u.league] || 0) + 1; });
+  const leagues = rows_('Leagues').map(l => ({ id: String(l.id), name: String(l.name), code: String(l.code), count: counts[String(l.id)] || 0, wa: String(l.wa || '') }));
   return { settings: { lockISO: cfg.lockISO, manualOnly: cfg.manualOnly === 'true', sourceUrl: cfg.sourceUrl || '' }, users: users, leagues: leagues, finals: finals_() };
 }
 
 function adminLeagueSave_(b) {
   requireAdmin_(b);
-  const name = String(b.name || '').trim(), code = String(b.code || '').trim();
+  const name = String(b.name || '').trim(), code = String(b.code || '').trim(), wa = String(b.wa || '').trim();
+  if (wa && !/^https:\/\/[A-Za-z0-9.\/_?=&%-]{8,200}$/.test(wa)) throw new Error('Lien du groupe invalide (doit commencer par https://).');
   if (name.length < 2 || name.length > 30) throw new Error('Nom de ligue : 2 à 30 caractères.');
   if (!/^[A-Za-z0-9]{3,20}$/.test(code)) throw new Error('Code : 3 à 20 lettres/chiffres, sans espace.');
   const ls = rows_('Leagues');
@@ -507,11 +513,11 @@ function adminLeagueSave_(b) {
   if (b.id) {
     const l = ls.find(x => String(x.id) === String(b.id));
     if (!l) throw new Error('Ligue introuvable.');
-    l.name = name; l.code = code;
+    l.name = name; l.code = code; l.wa = wa;
   } else {
     let n = 1;
     ls.forEach(l => { n = Math.max(n, Number(String(l.id).slice(1)) + 1); });
-    ls.push({ id: 'L' + n, name: name, code: code, createdAt: new Date().toISOString() });
+    ls.push({ id: 'L' + n, name: name, code: code, createdAt: new Date().toISOString(), wa: wa });
   }
   replaceRows_('Leagues', ls);
   cacheDel_('leagues');
@@ -542,6 +548,59 @@ function adminMoveUser_(b) {
   cacheDel_('users');
   delBoards_();
   return { ok: true };
+}
+
+/* ============ CHAT (par ligue) ============ */
+const CHAT_KEEP = 150;   // messages renvoyés par ligue
+function chatTail_() {   // lit seulement la fin de la feuille (rapide même avec des milliers de messages)
+  const sh = sheet_('Chat'), last = sh.getLastRow();
+  if (last < 2) return [];
+  const from = Math.max(2, last - 399);
+  return sh.getRange(from, 1, last - from + 1, SHEETS.Chat.length).getValues()
+    .filter(r => r[0] !== '' && r[0] !== null)
+    .map(r => ({ id: String(r[0]), league: String(r[1]), pseudo: String(r[2]), role: String(r[3]), text: String(r[4]), ts: String(r[5]) }));
+}
+function chatDel_() { cacheDel_.apply(null, [].concat(Object.keys(leaguesMap_()).map(id => 'chat_' + id))); }
+function chatLeague_(u, b) {
+  const lm = leaguesMap_();
+  const id = u.role === 'admin' && b.league ? String(b.league) : u.league;
+  if (!lm[id]) throw new Error('Ligue introuvable.');
+  return id;
+}
+
+function chatGet_(b) {
+  const u = requireUser_(b);
+  const id = chatLeague_(u, b);
+  const msgs = cached_('chat_' + id, 8, () => chatTail_().filter(m => m.league === id || m.league === '*').slice(-CHAT_KEEP));
+  const since = Number(b.since || 0);
+  return { league: id, leagueName: leaguesMap_()[id].name, messages: since ? msgs.filter(m => Number(m.id.split('-')[0]) > since) : msgs, serverNow: Date.now() };
+}
+
+function chatSend_(b) {
+  const u = requireUser_(b);
+  const text = String(b.text || '').replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, 300);
+  if (!text) throw new Error('Message vide.');
+  const rl = 'rl_' + String(u.pseudo).toLowerCase();
+  if (cacheGet_(rl)) throw new Error('Doucement : 2 secondes entre deux messages.');
+  cachePut_(rl, 1, 2);
+  const toAll = u.role === 'admin' && b.all === true;
+  const league = toAll ? '*' : chatLeague_(u, b);
+  const now = Date.now();
+  appendRow_('Chat', { id: now + '-' + Math.floor(Math.random() * 1000), league: league, pseudo: u.pseudo, role: u.role, text: text, ts: new Date(now).toISOString() });
+  chatDel_();
+  return { ok: true };
+}
+
+function chatDelete_(b) {
+  requireAdmin_(b);
+  const sh = sheet_('Chat'), last = sh.getLastRow();
+  const from = Math.max(2, last - 399);
+  if (last < 2) throw new Error('Message introuvable.');
+  const ids = sh.getRange(from, 1, last - from + 1, 1).getValues();
+  for (let i = ids.length - 1; i >= 0; i--) {
+    if (String(ids[i][0]) === String(b.id)) { sh.deleteRow(from + i); chatDel_(); return { ok: true }; }
+  }
+  throw new Error('Message introuvable.');
 }
 
 function adminSettings_(b) {
@@ -695,6 +754,9 @@ function handle_(b) {
     case 'adminSetRanking':return adminSetRanking_(b);
     case 'adminResetPin':  return adminResetPin_(b);
     case 'adminDeleteUser':return adminDeleteUser_(b);
+    case 'chatGet':        return chatGet_(b);
+    case 'chatSend':       return chatSend_(b);
+    case 'chatDelete':     return chatDelete_(b);
     case 'adminLeagueSave':return adminLeagueSave_(b);
     case 'adminLeagueDelete':return adminLeagueDelete_(b);
     case 'adminMoveUser':  return adminMoveUser_(b);
@@ -704,7 +766,7 @@ function handle_(b) {
 }
 
 // Seules les actions qui ÉCRIVENT passent par le verrou. Les lectures et les connexions ne font jamais la queue.
-const WRITE_ACTIONS = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser'];
+const WRITE_ACTIONS = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser', 'chatSend', 'chatDelete'];
 
 function doPost(e) {
   let out, locked = false;

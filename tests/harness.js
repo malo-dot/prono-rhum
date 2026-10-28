@@ -9,7 +9,7 @@ module.exports = function load(file) {
       getLastRow: () => g.length, getMaxRows: () => 1000, setFrozenRows() {},
       getDataRange: () => ({ getValues: () => { ops.reads++; return g.map(r => r.slice()); } }),
       clearContents: () => { ops.writes++; g.length = 0; },
-      appendRow: r => { ops.writes++; g.push(r.slice()); },
+      appendRow: r => { ops.writes++; g.push(r.slice()); }, deleteRow: r => { ops.writes++; g.splice(r - 1, 1); },
       getRange: (r, c, nr = 1, nc = 1) => ({
         getValues: () => { ops.reads++; const o = []; for (let i = 0; i < nr; i++) { const row = []; for (let j = 0; j < nc; j++) row.push(cell(r + i, c + j)); o.push(row); } return o; },
         getValue: () => { ops.reads++; return cell(r, c); },

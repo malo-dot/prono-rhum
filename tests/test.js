@@ -70,7 +70,7 @@ ok('anti force brute: 8 échecs => blocage', () => {
 call('adminDeleteUser', { token: adm.token, pseudo: 'Tom' });
 ok('suppression joueur: jeton invalide + classement à jour', () => {
   assert.throws(() => call('me', { token: tom.token }), /Session expirée|invalide/);
-  assert.equal(call('board', { token: lea.token }).board.length, 2);
+  assert.equal(call('board', { token: lea.token }).board.length, 1);
 });
 ok('doPost: format JSON + BUSY géré', () => {
   const r = JSON.parse(X.doPost({ postData: { contents: JSON.stringify({ action: 'config' }) } }).t);
@@ -92,7 +92,7 @@ ok('classement de ligue séparé du général', () => {
   assert.deepEqual(own.board.map(x => x.pseudo), ['Zoe']);
   assert.equal(own.leagueName, 'Famille');
   const all = call('board', { token: zoe.token, scope: 'all' });
-  assert.equal(all.board.length, 3);
+  assert.equal(all.board.length, 2);
   assert.equal(call('board', { token: lea.token }).board.some(x => x.pseudo === 'Zoe'), false);
 });
 ok('déplacer un joueur met les classements à jour', () => {
@@ -106,5 +106,59 @@ ok('renommer une ligue', () => {
   const id = call('adminGet', { token: adm.token }).leagues.find(l => l.name === 'Famille').id;
   call('adminLeagueSave', { token: adm.token, id: id, name: 'Famille 2', code: 'FAM26' });
   assert.equal(call('me', { token: zoe.token }).me.league.name, 'Famille 2');
+});
+
+// ---- chat par ligue ----
+const famId = call('adminGet', { token: adm.token }).leagues.find(l => l.name === 'Famille 2').id;
+ok('lien WhatsApp: refuse un lien invalide, garde un https', () => {
+  assert.throws(() => call('adminLeagueSave', { token: adm.token, id: famId, name: 'Famille 2', code: 'FAM26', wa: 'javascript:alert(1)' }), /invalide/);
+  call('adminLeagueSave', { token: adm.token, id: famId, name: 'Famille 2', code: 'FAM26', wa: 'https://chat.whatsapp.com/ABC123' });
+  assert.equal(call('me', { token: zoe.token }).me.league.wa, 'https://chat.whatsapp.com/ABC123');
+});
+call('chatSend', { token: zoe.token, text: 'Salut la famille <b>x</b>' });
+X.cacheDel_('rl_zoe');
+ok('chat: message visible dans sa ligue, pas dans une autre', () => {
+  assert.equal(call('chatGet', { token: zoe.token }).messages.length, 1);
+  assert.equal(call('chatGet', { token: lea.token }).messages.length, 0);
+});
+throws('chat: anti-spam 2 s', () => { call('chatSend', { token: zoe.token, text: 'a' }); call('chatSend', { token: zoe.token, text: 'b' }); }, /Doucement/);
+X.cacheDel_('rl_zoe');
+throws('chat: message vide refusé', () => call('chatSend', { token: zoe.token, text: '   ' }), /vide/);
+ok('chat: 300 caractères max', () => { call('chatSend', { token: zoe.token, text: 'x'.repeat(500) }); const m = call('chatGet', { token: zoe.token }).messages; assert.equal(m[m.length - 1].text.length, 300); });
+ok('chat: joueur ne peut pas écrire dans une autre ligue', () => {
+  X.cacheDel_('rl_lea'); call('chatSend', { token: lea.token, text: 'hello', league: famId });
+  assert.equal(call('chatGet', { token: zoe.token }).messages.some(m => m.pseudo === 'Lea'), false);
+});
+ok('chat: admin écrit dans une ligue et en annonce à toutes', () => {
+  X.cacheDel_('rl_malo'); call('chatSend', { token: adm.token, text: 'Bienvenue', league: famId });
+  X.cacheDel_('rl_malo'); call('chatSend', { token: adm.token, text: 'ANNONCE', all: true });
+  const f = call('chatGet', { token: zoe.token }).messages, l = call('chatGet', { token: lea.token }).messages;
+  assert.ok(f.some(m => m.text === 'Bienvenue' && m.role === 'admin'));
+  assert.ok(f.some(m => m.text === 'ANNONCE') && l.some(m => m.text === 'ANNONCE'));
+  assert.equal(l.some(m => m.text === 'Bienvenue'), false);
+  assert.equal(call('chatGet', { token: adm.token, league: famId }).messages.some(m => m.text === 'Bienvenue'), true);
+});
+ok('chat: seul l\'admin supprime', () => {
+  const m = call('chatGet', { token: zoe.token }).messages[0];
+  assert.throws(() => call('chatDelete', { token: zoe.token, id: m.id }), /admin/);
+  call('chatDelete', { token: adm.token, id: m.id });
+  assert.equal(call('chatGet', { token: zoe.token }).messages.some(x => x.id === m.id), false);
+});
+ok('chat: since ne renvoie que le nouveau', () => {
+  const all = call('chatGet', { token: zoe.token }).messages, last = Number(all[all.length - 1].id.split('-')[0]);
+  assert.equal(call('chatGet', { token: zoe.token, since: last }).messages.length, 0);
+});
+
+// ---- l'admin ne joue pas ----
+throws('admin ne peut pas faire de pronos', () => call('savePicks', { token: adm.token, picks: { ULTIM: U } }), /ne joue pas/);
+ok('admin absent des classements et des compteurs', () => {
+  assert.equal(call('board', { token: adm.token }).board.some(x => x.pseudo === 'Malo'), false);
+  assert.equal(call('board', { token: adm.token, scope: 'all' }).board.some(x => x.pseudo === 'Malo'), false);
+  const g = call('adminGet', { token: adm.token });
+  assert.equal(g.leagues.reduce((a, l) => a + l.count, 0), g.users.filter(u => u.role !== 'admin').length);
+});
+ok('admin voit une ligue précise ou le général', () => {
+  assert.deepEqual(call('board', { token: adm.token, scope: famId }).board.map(x => x.pseudo), ['Zoe']);
+  assert.ok(call('board', { token: adm.token }).board.length >= 2);
 });
 console.log('\n' + n + ' tests OK');
