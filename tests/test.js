@@ -13,10 +13,10 @@ ok('scoring: classement partiel sans bonus parfait', () => assert.equal(X.scoreC
 const adm = call('login', { pseudo: 'malo', pin: 'admin1' });
 ok('login admin', () => assert.equal(adm.me.role, 'admin'));
 throws('mauvais PIN refusé', () => call('login', { pseudo: 'Malo', pin: 'xxxx' }), /incorrect/);
-throws('code ligue faux refusé', () => call('register', { pseudo: 'Lea', pin: '123456', code: 'FAUX' }), /Code de ligue/);
-const lea = call('register', { pseudo: 'Lea', pin: '123456', code: 'rhum2026' });
-const tom = call('register', { pseudo: 'Tom', pin: 'abcd12', code: 'RHUM2026' });
-throws('pseudo doublon refusé', () => call('register', { pseudo: 'lea', pin: '123456', code: 'RHUM2026' }), /déjà pris/);
+throws('code ligue faux refusé', () => call('register', { phone: '06 12 34 56 78', pseudo: 'Lea', pin: '123456', code: 'FAUX' }), /Code de ligue/);
+const lea = call('register', { phone: '06 12 34 56 78', pseudo: 'Lea', pin: '123456', code: 'rhum2026' });
+const tom = call('register', { phone: '06 12 34 56 78', pseudo: 'Tom', pin: 'abcd12', code: 'RHUM2026' });
+throws('pseudo doublon refusé', () => call('register', { phone: '06 12 34 56 78', pseudo: 'lea', pin: '123456', code: 'RHUM2026' }), /déjà pris/);
 throws('jeton falsifié refusé', () => call('me', { token: lea.token.slice(0, -3) + 'AAA' }), /Session expirée/);
 throws('jeton d\'un autre refusé (pseudo modifié)', () => { const [p, s] = lea.token.split('.'); const o = JSON.parse(Buffer.from(p, 'base64url')); o.p = 'Malo'; call('me', { token: Buffer.from(JSON.stringify(o)).toString('base64url') + '.' + s }); }, /Session expirée/);
 
@@ -84,7 +84,7 @@ X.setConfig_('lockISO', new Date(Date.now() + 3600e3).toISOString());
 const lg = call('adminLeagueSave', { token: adm.token, name: 'Famille', code: 'FAM26' });
 throws('code de ligue en doublon refusé', () => call('adminLeagueSave', { token: adm.token, name: 'Autre', code: 'fam26' }), /déjà utilisé/);
 throws('non-admin ne crée pas de ligue', () => call('adminLeagueSave', { token: lea.token, name: 'X', code: 'XXXX' }), /admin/);
-const zoe = call('register', { pseudo: 'Zoe', pin: '432100', code: 'fam26' });
+const zoe = call('register', { phone: '06 12 34 56 78', pseudo: 'Zoe', pin: '432100', code: 'fam26' });
 ok('inscription via le code → bonne ligue', () => assert.equal(zoe.me.league.name, 'Famille'));
 ok('classement de ligue séparé du général', () => {
   call('savePicks', { token: zoe.token, picks: { ULTIM: U } });
@@ -161,6 +161,34 @@ ok('admin voit une ligue précise ou le général', () => {
   assert.deepEqual(call('board', { token: adm.token, scope: famId }).board.map(x => x.pseudo), ['Zoe']);
   assert.ok(call('board', { token: adm.token }).board.length >= 2);
 });
-throws('mot de passe trop court refusé', () => call('register', { pseudo: 'Court', pin: '1234', code: 'RHUM2026' }), /6 caractères/);
-ok('mot de passe avec espaces et symboles accepté', () => { const r = call('register', { pseudo: 'Sym', pin: 'Mon mot de passe !é', code: 'RHUM2026' }); assert.equal(call('login', { pseudo: 'Sym', pin: 'Mon mot de passe !é' }).me.pseudo, 'Sym'); });
+throws('mot de passe trop court refusé', () => call('register', { phone: '06 12 34 56 78', pseudo: 'Court', pin: '1234', code: 'RHUM2026' }), /6 caractères/);
+ok('mot de passe avec espaces et symboles accepté', () => { const r = call('register', { phone: '06 12 34 56 78', pseudo: 'Sym', pin: 'Mon mot de passe !é', code: 'RHUM2026' }); assert.equal(call('login', { pseudo: 'Sym', pin: 'Mon mot de passe !é' }).me.pseudo, 'Sym'); });
+
+// ---- téléphone, mot de passe oublié, changement de mot de passe ----
+throws('inscription sans téléphone refusée', () => call('register', { pseudo: 'Sans', pin: '123456', code: 'RHUM2026' }), /téléphone/);
+throws('téléphone invalide refusé', () => call('register', { pseudo: 'Sans', pin: '123456', phone: '12ab', code: 'RHUM2026' }), /téléphone/);
+ok('admin voit le numéro, pas les autres joueurs', () => {
+  const u = call('adminGet', { token: adm.token }).users.find(x => x.pseudo === 'Zoe');
+  assert.equal(u.phone, '0612345678');
+  assert.equal(JSON.stringify(call('board', { token: zoe.token })).includes('0612345678'), false);
+});
+ok('mot de passe oublié: demande visible par l\'admin, réponse identique si pseudo inconnu', () => {
+  assert.deepEqual(call('forgot', { pseudo: 'Zoe' }), { ok: true });
+  assert.deepEqual(call('forgot', { pseudo: 'Inconnu' }), { ok: true });
+  const rq = call('adminGet', { token: adm.token }).requests;
+  assert.deepEqual(rq.map(r => r.pseudo), ['Zoe']);
+});
+ok('admin définit un nouveau mot de passe: la demande disparaît', () => {
+  call('adminResetPin', { token: adm.token, pseudo: 'Zoe', pin: 'nouveau1' });
+  assert.equal(call('adminGet', { token: adm.token }).requests.length, 0);
+  assert.equal(call('login', { pseudo: 'Zoe', pin: 'nouveau1' }).me.pseudo, 'Zoe');
+});
+ok('changement de mot de passe par le joueur', () => {
+  const t = call('login', { pseudo: 'Zoe', pin: 'nouveau1' }).token;
+  assert.throws(() => call('changePassword', { token: t, pin: 'faux', newPin: 'encore12' }), /actuel incorrect/);
+  assert.throws(() => call('changePassword', { token: t, pin: 'nouveau1', newPin: 'court' }), /6 caractères/);
+  const r = call('changePassword', { token: t, pin: 'nouveau1', newPin: 'encore12' });
+  assert.equal(call('me', { token: r.token }).me.pseudo, 'Zoe');
+  assert.equal(call('login', { pseudo: 'Zoe', pin: 'encore12' }).me.pseudo, 'Zoe');
+});
 console.log('\n' + n + ' tests OK');

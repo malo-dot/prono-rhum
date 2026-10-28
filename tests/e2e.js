@@ -5,7 +5,7 @@ const call = (a, b) => X.handle_(Object.assign({ action: a }, b));
 const sk = call('config', {}).skippers, nm = (c, i) => sk[c][i].name;
 X.setConfig_('lockISO', new Date(Date.now() + 3 * 86400e3).toISOString());
 // quelques joueurs déjà inscrits
-['Lea', 'Tom', 'Yann', 'Gwen', 'Maelle'].forEach((p, i) => { const t = call('register', { pseudo: p, pin: '1234', code: 'RHUM2026' }).token; call('savePicks', { token: t, picks: { ULTIM: [0, 1, 2, 3, 4].map(k => nm('ULTIM', (k + i) % 8)), CLASS40: [0, 1, 2, 3, 4].map(k => nm('CLASS40', (k * 3 + i) % 49)) } }); });
+['Lea', 'Tom', 'Yann', 'Gwen', 'Maelle'].forEach((p, i) => { const t = call('register', { phone: '06 12 34 56 78', pseudo: p, pin: '123456', code: 'RHUM2026' }).token; call('savePicks', { token: t, picks: { ULTIM: [0, 1, 2, 3, 4].map(k => nm('ULTIM', (k + i) % 8)), CLASS40: [0, 1, 2, 3, 4].map(k => nm('CLASS40', (k * 3 + i) % 49)) } }); });
 let busyLeft = 0, calls = 0;
 (async () => {
   const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -20,7 +20,7 @@ let busyLeft = 0, calls = 0;
   await p.route('**/index.html', r => r.fulfill({ contentType: 'text/html', body: fs.readFileSync('index.html', 'utf8').replace(/const API_URL = '[^']*'/, "const API_URL = 'https://mock.test/exec'") }));
   await p.goto('http://localhost/index.html'); await p.waitForSelector('.hero');
   // inscription via l'UI
-  await p.click('.tabsw button[data-m=register]'); await p.fill('#a_pseudo', 'Malo2'); await p.fill('#a_pin', 'abcd12'); await p.fill('#a_code', 'rhum2026'); await p.click('#a_go');
+  await p.click('.tabsw button[data-m=register]'); await p.fill('#a_pseudo', 'Malo2'); await p.fill('#a_pin', 'abcd12'); await p.fill('#a_phone', '0612345678'); await p.fill('#a_code', 'rhum2026'); await p.click('#a_go');
   await p.waitForSelector('.slot'); console.log('✔ inscription via l\'UI');
   // remplir ULTIM via le sélecteur
   for (let i = 0; i < 5; i++) { await p.click('.slot >> nth=' + i); await p.waitForSelector('.sheet'); await p.click('.opt:not([disabled]) >> nth=0'); }

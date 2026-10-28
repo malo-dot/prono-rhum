@@ -159,7 +159,7 @@ function toast(msg, err) {
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const WRITES = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser', 'chatSend', 'chatDelete'];
+const WRITES = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser', 'chatSend', 'chatDelete', 'forgot', 'adminDismissRequest', 'changePassword'];
 
 async function api(action, data) {
   if (!API_URL || API_URL.indexOf('COLLE_ICI') === 0) throw new Error('API_URL non configurée dans index.html');
@@ -269,11 +269,17 @@ function render() {
   app.innerHTML =
     '<header class="top"><div class="wrap"><div class="brand"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#f9ed37"/><path d="M15 29 L29 29 L22 15Z" fill="#82bebf"/><rect x="1" y="17" width="12" height="12" fill="#fff"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()">MPP <span>RDR 2026</span></div>' +
     '<div class="who">' + esc(S.me.pseudo) + (isAdm ? ' <span class="pill">admin</span>' : (S.me.league ? ' <span class="pill">' + esc(S.me.league.name) + '</span>' : '')) + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
-    '<main class="wrap" id="main"></main><p class="foot">Jeu de pronos entre amis · application non officielle</p>' +
+    '<main class="wrap" id="main"></main><p class="foot">Jeu de pronos entre amis · application non officielle<br><a href="#" id="chpw" style="color:#c3cde4">Changer mon mot de passe</a></p>' +
     '<nav class="tabs"><div class="in">' +
     (isAdm ? tabBtn('admin', '■', 'Admin') + tabBtn('picks', '◎', 'Test') : tabBtn('picks', '◎', 'Pronos')) + tabBtn('board', '▲', 'Joueurs') + tabBtn('chat', '✉', 'Chat') + tabBtn('race', '≋', 'Course') +
     '</div></nav>';
   $('#out').onclick = () => logout();
+  $('#chpw').onclick = e => {
+    e.preventDefault();
+    const old = prompt('Mot de passe actuel :'); if (!old) return;
+    const nw = prompt('Nouveau mot de passe (6 caractères minimum) :'); if (!nw) return;
+    guard(async () => { const r = await api('changePassword', { pin: old, newPin: nw }); S.token = r.token; lsSet('prono_token', r.token); toast('Mot de passe changé ✔'); });
+  };
   document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
   if (S.tab === 'picks') viewPicks();
   else if (S.tab === 'chat') viewChat();
@@ -292,8 +298,10 @@ function authView() {
     '<div class="card">' +
     '<div class="field"><label>Pseudo</label><input id="a_pseudo" autocomplete="username" maxlength="20"></div>' +
     '<div class="field"><label>Mot de passe' + (reg ? ' (6 caractères minimum)' : '') + '</label><input id="a_pin" type="password" autocomplete="' + (reg ? 'new-password' : 'current-password') + '" maxlength="64"></div>' +
+    (reg ? '<div class="field"><label>Numéro de téléphone</label><input id="a_phone" type="tel" autocomplete="tel" maxlength="20" placeholder="06 12 34 56 78"><div class="mute" style="margin-top:4px">Visible uniquement par l\'admin, pour te dépanner si tu perds ton mot de passe.</div></div>' : '') +
     (reg ? '<div class="field"><label>Code de ta ligue (donné par l\'admin)</label><input id="a_code" autocapitalize="characters"></div>' : '') +
-    '<button class="btn" id="a_go">' + (reg ? 'Rejoindre la ligue' : 'Se connecter') + '</button></div></div>';
+    '<button class="btn" id="a_go">' + (reg ? 'Rejoindre la ligue' : 'Se connecter') + '</button>' +
+    (reg ? '' : '<p style="text-align:center;margin:12px 0 0"><a href="#" id="a_forgot" style="color:var(--navy);font-weight:700">Mot de passe oublié ?</a></p>') + '</div></div>';
 }
 
 function bindAuth() {
@@ -302,7 +310,7 @@ function bindAuth() {
     const btn = $('#a_go'); btn.disabled = true;
     try {
       const body = { pseudo: $('#a_pseudo').value, pin: $('#a_pin').value };
-      if (S.authMode === 'register') body.code = $('#a_code').value;
+      if (S.authMode === 'register') { body.code = $('#a_code').value; body.phone = $('#a_phone').value; }
       const r = await api(S.authMode, body);
       S.token = r.token; S.me = r.me; lsSet('prono_token', r.token); if (S.me.role === 'admin') S.tab = 'admin';
       const m = await api('me'); S.picks = m.picks; S.draft = JSON.parse(JSON.stringify(m.picks));
@@ -310,6 +318,13 @@ function bindAuth() {
     } finally { const b = $('#a_go'); if (b) b.disabled = false; }
   });
   $('#a_go').onclick = go;
+  const fg = $('#a_forgot');
+  if (fg) fg.onclick = e => {
+    e.preventDefault();
+    const pseudo = $('#a_pseudo').value.trim();
+    if (!pseudo) { toast('Entre d\'abord ton pseudo ci-dessus', true); return; }
+    guard(async () => { await api('forgot', { pseudo: pseudo }); alert('Demande envoyée à l\'admin. Il te contactera par téléphone avec un nouveau mot de passe, que tu pourras changer ensuite dans l\'application.'); });
+  };
   document.querySelectorAll('.card input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') go(); });
 }
 
@@ -549,6 +564,12 @@ async function viewChat() {
 }
 
 /* ============ ADMIN ============ */
+function phoneHtml(p) {
+  if (!p) return 'pas de numéro';
+  const t = String(p).replace(/[^\d+]/g, '');
+  return '<a href="tel:' + esc(t) + '" style="color:inherit"><b>' + esc(p) + '</b></a> · <a href="sms:' + esc(t) + '" style="color:inherit">SMS</a>';
+}
+
 function toLocalInput(iso) {
   const d = new Date(iso), p = n => String(n).padStart(2, '0');
   return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
@@ -569,6 +590,14 @@ async function viewAdmin() {
     '<button class="btn" id="s_save">Enregistrer les réglages</button>' +
     '<button class="btn sec" id="s_ref" style="margin-top:8px">Rafraîchir le classement depuis la source</button></div>';
 
+  if (a.requests && a.requests.length) {
+    h += '<div class="card" style="background:var(--yellow)"><h3>🔑 Mots de passe oubliés (' + a.requests.length + ')</h3>';
+    a.requests.forEach(r => {
+      h += '<div class="u"><div><b>' + esc(r.pseudo) + '</b><div class="mute" style="color:var(--navy)">' + phoneHtml((a.users.find(x => x.pseudo === r.pseudo) || {}).phone) + ' · ' + esc(fmtTime(r.ts)) + '</div></div>' +
+        '<div class="row"><button class="btn sm sec" data-rq="' + esc(r.pseudo) + '">Nouveau mot de passe</button><button class="btn sm danger" data-rd="' + esc(r.pseudo) + '">✖</button></div></div>';
+    });
+    h += '</div>';
+  }
   h += '<div class="card"><h3>Ligues</h3><p class="mute">Un joueur est dans une seule ligue. Il la rejoint avec son code à l\'inscription.</p>';
   a.leagues.forEach(l => {
     h += '<div class="u"><div><b>' + esc(l.name) + '</b><div class="mute">Code : <b>' + esc(l.code) + '</b> · ' + l.count + ' joueur' + (l.count > 1 ? 's' : '') + '</div></div>' +
@@ -591,7 +620,7 @@ async function viewAdmin() {
 
   h += '<div class="card"><h3>Joueurs (' + a.users.length + ')</h3>';
   a.users.forEach(u => {
-    h += '<div class="u"><div><b>' + esc(u.pseudo) + '</b> ' + (u.role === 'admin' ? '<span class="pill">admin</span>' : '') + (u.role === 'admin' ? '' : '<select data-mv="' + esc(u.pseudo) + '" style="margin-top:6px;padding:6px">' + a.leagues.map(l => '<option value="' + esc(l.id) + '"' + (l.id === u.league ? ' selected' : '') + '>' + esc(l.name) + '</option>').join('') + '</select>') + '</div>' +
+    h += '<div class="u"><div><b>' + esc(u.pseudo) + '</b> ' + (u.role === 'admin' ? '<span class="pill">admin</span>' : '') + '<div class="mute">' + phoneHtml(u.phone) + '</div>' + (u.role === 'admin' ? '' : '<select data-mv="' + esc(u.pseudo) + '" style="margin-top:6px;padding:6px">' + a.leagues.map(l => '<option value="' + esc(l.id) + '"' + (l.id === u.league ? ' selected' : '') + '>' + esc(l.name) + '</option>').join('') + '</select>') + '</div>' +
       (u.role === 'admin' ? '' : '<div class="row"><button class="btn sm sec" data-pin="' + esc(u.pseudo) + '">Reset mot de passe</button><button class="btn sm danger" data-del="' + esc(u.pseudo) + '">✖</button></div>') + '</div>';
   });
   h += '</div>';
@@ -636,6 +665,14 @@ async function viewAdmin() {
   document.querySelectorAll('[data-mv]').forEach(sel => sel.onchange = () => guard(async () => {
     await api('adminMoveUser', { pseudo: sel.dataset.mv, league: sel.value });
     S.adm = null; S.board = null; toast('Joueur déplacé ✔'); viewAdmin();
+  }));
+  document.querySelectorAll('[data-rq]').forEach(b => b.onclick = () => guard(async () => {
+    const pin = prompt('Nouveau mot de passe pour ' + b.dataset.rq + ' (6 caractères minimum). Envoie-le lui ensuite :');
+    if (!pin) return;
+    await api('adminResetPin', { pseudo: b.dataset.rq, pin: pin }); S.adm = null; toast('Mot de passe défini ✔'); viewAdmin();
+  }));
+  document.querySelectorAll('[data-rd]').forEach(b => b.onclick = () => guard(async () => {
+    await api('adminDismissRequest', { pseudo: b.dataset.rd }); S.adm = null; viewAdmin();
   }));
   document.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => guard(async () => {
     const pin = prompt('Nouveau mot de passe pour ' + b.dataset.pin + ' (6 caractères minimum) :');

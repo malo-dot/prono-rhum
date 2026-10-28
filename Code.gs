@@ -83,8 +83,9 @@ const SKIPPERS_SEED = {
 // ====== OUTILS FEUILLES ======
 const SHEETS = {
   Config:   ['key', 'value'],
-  Users:    ['pseudo', 'salt', 'hash', 'role', 'createdAt', 'active', 'league'],
+  Users:    ['pseudo', 'salt', 'hash', 'role', 'createdAt', 'active', 'league', 'phone'],
   Leagues:  ['id', 'name', 'code', 'createdAt', 'wa'],
+  Requests: ['pseudo', 'note', 'ts'],   // demandes « mot de passe oublié »
   Chat:     ['id', 'league', 'pseudo', 'role', 'text', 'ts'],   // league = id de ligue, ou '*' = annonce pour tous
   Skippers: ['class', 'name', 'boat'],
   Picks:    ['pseudo', 'json', 'updatedAt'],   // 1 ligne par joueur
@@ -169,11 +170,16 @@ function leaguesMap_() {
   });
 }
 
+function fixPhone_(v) {   // Sheets peut avaler le 0 initial : on le remet
+  const s = String(v == null ? '' : v).trim();
+  return /^\d{9}$/.test(s) ? '0' + s : s;
+}
+
 function usersMap_() {
   return cached_('users', 300, () => {
     const m = {};
     rows_('Users').forEach(u => {
-      m[String(u.pseudo).toLowerCase()] = { pseudo: String(u.pseudo), salt: String(u.salt), hash: String(u.hash), role: u.role, createdAt: u.createdAt, active: String(u.active), league: String(u.league || '') };
+      m[String(u.pseudo).toLowerCase()] = { pseudo: String(u.pseudo), salt: String(u.salt), hash: String(u.hash), role: u.role, createdAt: u.createdAt, active: String(u.active), league: String(u.league || ''), phone: fixPhone_(u.phone) };
     });
     return m;
   });
@@ -303,9 +309,11 @@ function register_(b) {
   const lm = leaguesMap_();
   const lg = Object.keys(lm).map(k => lm[k]).find(l => l.code.toUpperCase() === code);
   if (!code || !lg) throw new Error('Code de ligue incorrect.');
+  const phone = String(b.phone || '').replace(/[\s.\-()]/g, '');
+  if (!/^\+?\d{9,15}$/.test(phone)) throw new Error('Numéro de téléphone invalide (ex. 06 12 34 56 78).');
   if (rows_('Users').some(u => String(u.pseudo).toLowerCase() === pseudo.toLowerCase())) throw new Error('Ce pseudo est déjà pris.');
   const salt = Utilities.getUuid();
-  appendRow_('Users', { pseudo: pseudo, salt: salt, hash: hash_(pin, salt), role: 'player', createdAt: new Date().toISOString(), active: 'true', league: lg.id });
+  appendRow_('Users', { pseudo: pseudo, salt: salt, hash: hash_(pin, salt), role: 'player', createdAt: new Date().toISOString(), active: 'true', league: lg.id, phone: phone });
   cacheDel_('users');
   delBoards_();
   return { token: makeToken_({ pseudo: pseudo, salt: salt }), me: { pseudo: pseudo, role: 'player', league: { id: lg.id, name: lg.name } } };
@@ -493,11 +501,12 @@ function detail_(b) {
 function adminGet_(b) {
   requireAdmin_(b);
   const cfg = getConfig_();
-  const users = rows_('Users').map(u => ({ pseudo: u.pseudo, role: u.role, createdAt: u.createdAt, active: String(u.active) === 'true', league: String(u.league || '') }));
+  const users = rows_('Users').map(u => ({ pseudo: u.pseudo, role: u.role, createdAt: u.createdAt, active: String(u.active) === 'true', league: String(u.league || ''), phone: fixPhone_(u.phone) }));
   const counts = {};
   users.forEach(u => { if (u.role !== 'admin') counts[u.league] = (counts[u.league] || 0) + 1; });
   const leagues = rows_('Leagues').map(l => ({ id: String(l.id), name: String(l.name), code: String(l.code), count: counts[String(l.id)] || 0, wa: String(l.wa || '') }));
-  return { settings: { lockISO: cfg.lockISO, manualOnly: cfg.manualOnly === 'true', sourceUrl: cfg.sourceUrl || '' }, users: users, leagues: leagues, finals: finals_() };
+  const requests = rows_('Requests').map(r => ({ pseudo: String(r.pseudo), note: String(r.note || ''), ts: String(r.ts) }));
+  return { settings: { lockISO: cfg.lockISO, manualOnly: cfg.manualOnly === 'true', sourceUrl: cfg.sourceUrl || '' }, requests: requests, users: users, leagues: leagues, finals: finals_() };
 }
 
 function adminLeagueSave_(b) {
@@ -662,8 +671,45 @@ function adminResetPin_(b) {
   if (!u) throw new Error('Joueur introuvable.');
   u.salt = Utilities.getUuid(); u.hash = hash_(pin, u.salt);
   replaceRows_('Users', users);
+  const rq = rows_('Requests');
+  if (rq.some(r => String(r.pseudo).toLowerCase() === String(u.pseudo).toLowerCase())) replaceRows_('Requests', rq.filter(r => String(r.pseudo).toLowerCase() !== String(u.pseudo).toLowerCase()));
   cacheDel_('users');
   return { ok: true };
+}
+
+/** Public : « mot de passe oublié ». Réponse toujours identique (ne révèle pas si le pseudo existe). */
+function forgot_(b) {
+  const pseudo = cleanPseudo_(b.pseudo), key = pseudo.toLowerCase();
+  const note = String(b.note || '').replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, 120);
+  const u = usersMap_()[key];
+  if (u && u.role !== 'admin' && u.active === 'true') {
+    const rl = 'fg_' + key.replace(/[^a-z0-9]/g, '_').slice(0, 60);
+    if (!cacheGet_(rl)) {
+      cachePut_(rl, 1, 60);
+      const rq = rows_('Requests');
+      if (!rq.some(r => String(r.pseudo).toLowerCase() === key)) appendRow_('Requests', { pseudo: u.pseudo, note: note, ts: new Date().toISOString() });
+    }
+  }
+  return { ok: true };
+}
+
+function adminDismissRequest_(b) {
+  requireAdmin_(b);
+  replaceRows_('Requests', rows_('Requests').filter(r => String(r.pseudo).toLowerCase() !== String(b.pseudo || '').toLowerCase()));
+  return { ok: true };
+}
+
+function changePassword_(b) {
+  const u = requireUser_(b);
+  const pin = String(b.newPin || '');
+  if (hash_(String(b.pin || ''), u.salt) !== u.hash) throw new Error('Mot de passe actuel incorrect.');
+  if (pin.length < 6 || pin.length > 64 || !pin.trim()) throw new Error('Mot de passe : 6 caractères minimum.');
+  const users = rows_('Users');
+  const row = users.find(x => x.pseudo === u.pseudo);
+  row.salt = Utilities.getUuid(); row.hash = hash_(pin, row.salt);
+  replaceRows_('Users', users);
+  cacheDel_('users');
+  return { token: makeToken_(row) };
 }
 
 function adminDeleteUser_(b) {
@@ -754,6 +800,9 @@ function handle_(b) {
     case 'adminSetRanking':return adminSetRanking_(b);
     case 'adminResetPin':  return adminResetPin_(b);
     case 'adminDeleteUser':return adminDeleteUser_(b);
+    case 'forgot':         return forgot_(b);
+    case 'adminDismissRequest': return adminDismissRequest_(b);
+    case 'changePassword': return changePassword_(b);
     case 'chatGet':        return chatGet_(b);
     case 'chatSend':       return chatSend_(b);
     case 'chatDelete':     return chatDelete_(b);
@@ -766,7 +815,7 @@ function handle_(b) {
 }
 
 // Seules les actions qui ÉCRIVENT passent par le verrou. Les lectures et les connexions ne font jamais la queue.
-const WRITE_ACTIONS = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser', 'chatSend', 'chatDelete'];
+const WRITE_ACTIONS = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser', 'chatSend', 'chatDelete', 'forgot', 'adminDismissRequest', 'changePassword'];
 
 function doPost(e) {
   let out, locked = false;
