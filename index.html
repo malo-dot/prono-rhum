@@ -188,7 +188,7 @@ function logout(silent) {
 
 async function boot() {
   S.token = lsGet('prono_token');
-  await guard(async () => {
+  try {
     S.cfg = await api('config');
     S.offset = new Date(S.cfg.serverNow).getTime() - Date.now();
     S.raceClass = S.cfg.classes[0].id;
@@ -198,7 +198,11 @@ async function boot() {
         S.me = m.me; S.picks = m.picks; S.draft = JSON.parse(JSON.stringify(m.picks));
       } catch (e) { S.token = null; lsSet('prono_token', null); }
     }
-  });
+  } catch (e) {
+    S.err = /Failed to fetch|NetworkError|Load failed/i.test(e.message)
+      ? 'Impossible de joindre le serveur. Vérifie ta connexion, ou que le déploiement Apps Script est bien en accès « Tout le monde ».'
+      : e.message;
+  }
   render();
   setInterval(tick, 1000);
   setInterval(() => { if (S.me && (S.tab === 'board' || S.tab === 'race')) refreshBoard(true); }, 60000);
@@ -216,7 +220,13 @@ function tick() {
 /* ============ RENDER ============ */
 function render() {
   const app = $('#app');
-  if (!S.cfg) { app.innerHTML = '<div class="wrap hero"><div class="big">⛵</div><p class="mute">Chargement…</p></div>'; return; }
+  if (!S.cfg) {
+    app.innerHTML = S.err
+      ? '<div class="wrap hero"><h1>Oups<br><span>erreur</span></h1><div class="card" style="margin-top:20px"><p style="margin:0 0 12px"><b>' + esc(S.err) + '</b></p><button class="btn" id="retry">Réessayer</button></div></div>'
+      : '<div class="wrap hero"><p class="mute" style="text-align:center;padding:60px 0">Chargement…</p></div>';
+    const r = $('#retry'); if (r) r.onclick = () => { S.err = null; render(); boot(); };
+    return;
+  }
   if (!S.me) { app.innerHTML = authView(); bindAuth(); return; }
   const isAdm = S.me.role === 'admin';
   app.innerHTML =
