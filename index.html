@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<link rel="preconnect" href="https://script.google.com"><link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1b2745">
 <title>MPP RDR 2026</title>
@@ -300,12 +301,14 @@ function logout(silent) {
 async function boot() {
   S.token = lsGet('prono_token');
   try {
-    S.cfg = await api('config');
+    const pCfg = api('config'), pMe = S.token ? api('me').catch(e => ({ _err: e })) : null;
+    S.cfg = await pCfg;
     S.offset = new Date(S.cfg.serverNow).getTime() - Date.now();
     S.raceClass = S.cfg.classes[0].id;
     if (S.token) {
       try {
-        const m = await api('me');
+        const m = await pMe;
+        if (m._err) throw m._err;
         S.me = m.me; if (S.me.role === 'admin') S.tab = 'admin'; S.picks = m.picks; S.draft = JSON.parse(JSON.stringify(m.picks));
       } catch (e) { S.token = null; lsSet('prono_token', null); }
     }
@@ -578,6 +581,7 @@ function openPicker(cid, idx) {
 async function refreshBoard(quiet) {
   await guard(async () => {
     S.board = await api('board', { scope: S.scope });
+    lsSet('prono_board_' + (S.me ? S.me.pseudo : ''), JSON.stringify(S.board));
     const k = JSON.stringify(S.board.updatedAt) + S.board.locked + S.board.scope;
     if (k !== S.bkey) { S.bkey = k; S.detail = {}; }
     if (S.tab === 'board') viewBoard(); else if (S.tab === 'race') viewRace();
@@ -585,7 +589,11 @@ async function refreshBoard(quiet) {
 }
 
 function viewBoard() {
-  if (!S.board) { $('#main').innerHTML = '<p class="mute" style="text-align:center;padding:40px">Chargement…</p>'; refreshBoard(); return; }
+  if (!S.board) {
+    let c = null; try { c = JSON.parse(lsGet('prono_board_' + S.me.pseudo) || 'null'); } catch (e) {}
+    if (c && c.board && (S.me.role === 'admin' || c.scope === 'all' || (S.me.league && c.scope === S.me.league.id))) { S.board = c; refreshBoard(true); }
+    else { $('#main').innerHTML = '<p class="mute" style="text-align:center;padding:40px">Chargement…</p>'; refreshBoard(); return; }
+  }
   const b = S.board;
   let h = '<div class="row sp" style="margin-top:6px"><h2>Classement des joueurs</h2><button class="btn sm sec" id="rf">↻</button></div>';
   if (S.me.role === 'admin' && b.leagues && b.leagues.length) {
@@ -715,6 +723,8 @@ async function viewChat() {
     const inp = $('#c_in'), text = inp.value.trim(); if (!text) return;
     const all = adm && $('#c_all') && $('#c_all').checked;
     inp.value = '';
+    const box = $('#msgs');
+    if (box) { const d = document.createElement('div'); d.className = 'msg mine'; d.style.opacity = '.55'; d.innerHTML = '<div class="mh"><b>' + esc(S.me.pseudo) + '</b> <span class="mute">envoi…</span></div><div class="mt">' + esc(text) + '</div>'; box.appendChild(d); box.scrollTop = box.scrollHeight; }
     try { await api('chatSend', { text: text, league: chatLeagueId() || undefined, all: all || undefined }); }
     catch (e) { inp.value = text; throw e; }
     S.chatKey = ''; S._chatFirst = true; await pollChat();
