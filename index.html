@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b2745">
+<title>Prono du Rhum</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap">
+<style>
+:root{
+  --navy:#28385c;--navy-d:#1b2745;--teal:#82bebf;--yellow:#f9ed37;--white:#fff;
+  --bg:var(--navy);--ink:var(--navy);--mute:#5b6784;
+  --acc:var(--yellow);--acc2:#2b7a80;--ok:#13805a;--warn:#a15c07;--bad:#c62828;--radius:6px;
+  --shadow:4px 4px 0 var(--navy-d);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--white);font:16px/1.4 'Outfit',system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding-bottom:calc(84px + env(safe-area-inset-bottom));background-image:radial-gradient(rgba(255,255,255,.07) 1.2px,transparent 1.2px);background-size:16px 16px}
+h1,h2,h3{margin:0;text-transform:uppercase;letter-spacing:.5px;font-weight:900}
+h2{font-size:22px}h3{font-size:16px}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select{font:inherit;color:var(--navy);background:#fff;border:2px solid var(--navy);border-radius:var(--radius);padding:12px;width:100%}
+input:focus,select:focus{outline:3px solid var(--teal);outline-offset:1px}
+input[type=checkbox]{accent-color:var(--navy);width:22px;height:22px}
+.wrap{max-width:640px;margin:0 auto;padding:16px}
+
+header.top{position:sticky;top:0;z-index:5;background:var(--navy-d);color:var(--white)}
+header.top::after{content:"";display:block;height:6px;background:linear-gradient(90deg,var(--teal) 0 33.3%,var(--yellow) 33.3% 66.6%,#fff 66.6%)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;padding:10px 16px}
+.brand{font-weight:900;letter-spacing:.8px;text-transform:uppercase;display:flex;align-items:center;gap:10px;font-size:15px}
+.brand span{color:var(--yellow)}
+.brand .logo{height:30px;width:auto}
+.who{font-size:13px;color:#c3cde4;display:flex;gap:8px;align-items:center}
+header.top .btn.sec{background:transparent;color:#fff;border:2px solid #fff;box-shadow:none}
+
+.btn{background:var(--yellow);color:var(--navy);border:2px solid var(--navy-d);border-radius:var(--radius);padding:13px 16px;font-weight:800;width:100%;text-transform:uppercase;letter-spacing:.6px;box-shadow:var(--shadow);transition:transform .08s,box-shadow .08s}
+.btn:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--navy-d)}
+.btn.sec{background:#fff;color:var(--navy)}
+.btn.sm{width:auto;padding:7px 11px;font-size:13px;box-shadow:2px 2px 0 var(--navy-d)}
+.btn.danger{background:#fbd0cc;color:#8a1a12}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.card{background:#fff;color:var(--navy);border:0;border-radius:var(--radius);padding:14px;margin:14px 0;box-shadow:var(--shadow)}
+.card.dark{background:var(--teal);color:var(--navy)}
+.card.dark .count{color:var(--navy)}
+.card.dark .mute{color:#2a4a62}
+.row{display:flex;gap:10px;align-items:center}
+.sp{justify-content:space-between}
+.mute{color:var(--mute);font-size:14px}
+.hero .mute,.foot,main>p.mute{color:#c3cde4}
+.pill{display:inline-block;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:800;background:#fff;color:var(--navy);border:2px solid var(--navy);text-transform:uppercase;letter-spacing:.4px}
+.pill.ok{background:#c9f0dd;color:#0b5a3e;border-color:#0b5a3e}.pill.warn{background:#fff6b3;color:#6b5200;border-color:#6b5200}.pill.bad{background:#fbd0cc;color:#8a1a12;border-color:#8a1a12}
+
+nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:6;background:var(--navy-d);border-top:4px solid var(--yellow);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs .in{max-width:640px;margin:0 auto;display:flex}
+nav.tabs button{flex:1;background:none;border:0;padding:9px 4px 8px;color:#9fb0d4;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;display:flex;flex-direction:column;align-items:center;gap:1px}
+nav.tabs button .ic{font-size:22px;line-height:1.1}
+nav.tabs button.on{color:var(--yellow)}
+nav.tabs button.on .ic{color:var(--teal)}
+
+.slot{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#eef6f6;border:2px dashed var(--navy);border-radius:var(--radius);padding:10px 12px;margin-top:10px;color:var(--navy)}
+.slot.filled{border-style:solid;background:#fff}
+.slot .n{flex:0 0 32px;height:32px;border-radius:50%;background:var(--navy);color:var(--yellow);display:grid;place-items:center;font-weight:900}
+.slot:nth-of-type(1) .n{background:var(--yellow);color:var(--navy);box-shadow:inset 0 0 0 2px var(--navy)}
+.slot .t{flex:1;min-width:0}
+.slot .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot .t small{color:var(--mute)}
+
+.sheet-bg{position:fixed;inset:0;background:rgba(27,39,69,.8);z-index:20;display:flex;align-items:flex-end}
+.sheet{background:#fff;color:var(--navy);width:100%;max-width:640px;margin:0 auto;border-top:5px solid var(--yellow);border-radius:18px 18px 0 0;max-height:85vh;display:flex;flex-direction:column;padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+.sheet .list{overflow:auto;margin-top:10px}
+.opt{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid rgba(40,56,92,.15);padding:12px 4px;font-weight:700;color:var(--navy)}
+.opt small{display:block;color:var(--mute);font-weight:400}
+.opt[disabled]{opacity:.35}
+
+.lb{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:var(--radius);background:#fff;color:var(--navy);margin-top:10px;width:100%;border:0;box-shadow:3px 3px 0 var(--navy-d);text-align:left}
+.lb.me{background:var(--yellow)}
+.lb .r{flex:0 0 34px;font-weight:900;font-size:19px;text-align:center}
+.lb .nm{flex:1;min-width:0;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb .pts{font-weight:900;font-size:20px}
+.lb .pts small{font-size:11px;color:var(--mute);font-weight:700;text-transform:uppercase}
+.mv{font-size:12px;font-weight:900;width:34px;text-align:center}
+.mv.up{color:var(--ok)}.mv.down{color:var(--bad)}.mv.eq{color:var(--mute)}
+.det{padding:10px 14px;font-size:14px}
+.det .cl{margin:10px 0 2px;color:var(--navy);font-weight:900;font-size:13px;text-transform:uppercase;letter-spacing:.5px;border-bottom:3px solid var(--teal);padding-bottom:2px}
+.det .ln{display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-weight:600}
+.s-exact{color:var(--ok)}.s-top{color:var(--warn)}.s-miss{color:var(--bad)}.s-wait{color:var(--mute)}
+
+.seg{display:flex;gap:8px;overflow:auto;padding:4px 4px 8px}
+.seg button{flex:0 0 auto;background:transparent;border:2px solid #fff;border-radius:99px;padding:7px 15px;color:#fff;font-weight:800;text-transform:uppercase;font-size:13px}
+.seg button.on{background:var(--yellow);border-color:var(--yellow);color:var(--navy)}
+.rk{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:2px solid rgba(40,56,92,.12)}
+.rk:last-of-type{border-bottom:0}
+.rk .n{flex:0 0 30px;height:30px;border-radius:50%;background:var(--navy);color:var(--yellow);display:grid;place-items:center;font-weight:900}
+.rk:nth-of-type(1) .n{background:var(--yellow);color:var(--navy);box-shadow:inset 0 0 0 2px var(--navy)}
+.field{margin:10px 0}
+.field label{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--mute);margin-bottom:4px}
+
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--navy-d);color:#fff;border:2px solid var(--yellow);padding:10px 16px;border-radius:var(--radius);z-index:30;max-width:90vw;font-weight:700}
+.toast.err{border-color:#ff8a80;color:#ffb4ac}
+
+.hero{padding:6px 0 4px}
+.hero .art{display:block;width:100%;height:auto;border-radius:var(--radius);box-shadow:var(--shadow)}
+.hero .logo{display:block;max-height:64px;width:auto;margin:14px auto 0}
+.hero h1{font-size:46px;line-height:.95;margin-top:18px;letter-spacing:-.5px;color:#fff}
+.hero h1 span{display:inline-block;background:var(--yellow);color:var(--navy);padding:2px 10px;margin-top:6px;transform:rotate(-1.5deg)}
+.hero p{margin:14px 0 0}
+.tabsw{display:flex;margin:18px 0 6px;border:2px solid #fff;border-radius:var(--radius);overflow:hidden}
+.tabsw button{flex:1;padding:11px;background:transparent;border:0;color:#fff;font-weight:800;text-transform:uppercase;font-size:13px;letter-spacing:.5px}
+.tabsw button+button{border-left:2px solid #fff}
+.tabsw button.on{background:var(--yellow);color:var(--navy)}
+.count{font-variant-numeric:tabular-nums;font-weight:900;color:var(--navy);font-size:24px}
+.hidden{display:none!important}
+.u{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:2px solid rgba(40,56,92,.12)}
+.foot{text-align:center;font-size:12px;padding:8px 16px 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast hidden"></div>
+
+<script>
+/* ============ CONFIG ============ */
+// Colle ici l'URL de ton déploiement Apps Script (se termine par /exec)
+const API_URL = 'COLLE_ICI_URL_APPS_SCRIPT';
+/* ================================== */
+
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const S = {
+  token: null, me: null, cfg: null, picks: {}, draft: {}, board: null,
+  tab: 'picks', raceClass: null, authMode: 'login', adm: null, open: null, offset: 0, busy: false
+};
+
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+
+function toast(msg, err) {
+  const t = $('#toast');
+  t.textContent = msg; t.className = 'toast' + (err ? ' err' : '');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 3200);
+}
+
+async function api(action, data) {
+  if (!API_URL || API_URL.indexOf('COLLE_ICI') === 0) throw new Error('API_URL non configurée dans index.html');
+  const r = await fetch(API_URL, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ action: action, token: S.token }, data || {}))
+  });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'Erreur');
+  return j.data;
+}
+
+async function guard(fn) {
+  try { return await fn(); }
+  catch (e) {
+    if (/Session expirée/.test(e.message)) { logout(true); return; }
+    toast(e.message, true);
+  }
+}
+
+/* ============ TEMPS ============ */
+function now() { return Date.now() + S.offset; }
+function lockMs() { return new Date(S.cfg.lockISO).getTime(); }
+function isLocked() { return now() >= lockMs(); }
+function fmtCount(ms) {
+  if (ms <= 0) return '0s';
+  const s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  return (d ? d + 'j ' : '') + (d || h ? h + 'h ' : '') + m + 'min ' + x + 's';
+}
+function fmtDate(iso) {
+  return new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+}
+function fmtTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+/* ============ AUTH ============ */
+function logout(silent) {
+  S.token = null; S.me = null; lsSet('prono_token', null);
+  if (!silent) toast('Déconnecté');
+  render();
+}
+
+async function boot() {
+  S.token = lsGet('prono_token');
+  await guard(async () => {
+    S.cfg = await api('config');
+    S.offset = new Date(S.cfg.serverNow).getTime() - Date.now();
+    S.raceClass = S.cfg.classes[0].id;
+    if (S.token) {
+      try {
+        const m = await api('me');
+        S.me = m.me; S.picks = m.picks; S.draft = JSON.parse(JSON.stringify(m.picks));
+      } catch (e) { S.token = null; lsSet('prono_token', null); }
+    }
+  });
+  render();
+  setInterval(tick, 1000);
+  setInterval(() => { if (S.me && (S.tab === 'board' || S.tab === 'race')) refreshBoard(true); }, 60000);
+}
+
+function tick() {
+  const el = $('#count');
+  if (el && S.cfg) {
+    const left = lockMs() - now();
+    el.textContent = left > 0 ? fmtCount(left) : 'Verrouillé';
+    if (left <= 0 && S._wasOpen) { S._wasOpen = false; render(); }
+  }
+}
+
+/* ============ RENDER ============ */
+function render() {
+  const app = $('#app');
+  if (!S.cfg) { app.innerHTML = '<div class="wrap hero"><div class="big">⛵</div><p class="mute">Chargement…</p></div>'; return; }
+  if (!S.me) { app.innerHTML = authView(); bindAuth(); return; }
+  const isAdm = S.me.role === 'admin';
+  app.innerHTML =
+    '<header class="top"><div class="wrap"><div class="brand"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#f9ed37"/><path d="M15 29 L29 29 L22 15Z" fill="#82bebf"/><rect x="1" y="17" width="12" height="12" fill="#fff"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()">Prono du <span>Rhum</span></div>' +
+    '<div class="who">' + esc(S.me.pseudo) + (isAdm ? ' <span class="pill">admin</span>' : '') + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
+    '<main class="wrap" id="main"></main><p class="foot">Jeu de pronos entre amis · application non officielle</p>' +
+    '<nav class="tabs"><div class="in">' +
+    tabBtn('picks', '◎', 'Pronos') + tabBtn('board', '▲', 'Joueurs') + tabBtn('race', '≋', 'Course') +
+    (isAdm ? tabBtn('admin', '■', 'Admin') : '') + '</div></nav>';
+  $('#out').onclick = () => logout();
+  document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
+  if (S.tab === 'picks') viewPicks();
+  else if (S.tab === 'board') viewBoard();
+  else if (S.tab === 'race') viewRace();
+  else if (S.tab === 'admin' && isAdm) viewAdmin();
+  window.scrollTo(0, 0);
+}
+function tabBtn(t, ic, l) { return '<button data-t="' + t + '" class="' + (S.tab === t ? 'on' : '') + '"><span class="ic">' + ic + '</span>' + l + '</button>'; }
+
+function authView() {
+  const reg = S.authMode === 'register';
+  return '<div class="wrap"><div class="hero"><svg class="art" viewBox="0 0 320 170" aria-hidden="true"><rect width="320" height="170" fill="#1b2745"/><circle cx="238" cy="60" r="46" fill="#f9ed37"/><path d="M118 112 V22 L180 112Z" fill="#fff"/><path d="M110 112 V44 L64 112Z" fill="#82bebf"/><rect x="58" y="108" width="130" height="9" fill="#f9ed37"/><path d="M0 124 Q40 104 80 124 T160 124 T240 124 T320 124 V170 H0Z" fill="#82bebf"/><path d="M0 142 Q40 122 80 142 T160 142 T240 142 T320 142 V170 H0Z" fill="#fff"/><path d="M0 160 Q40 142 80 160 T160 160 T240 160 T320 160 V170 H0Z" fill="#f9ed37"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()"><h1>Prono<br><span>du Rhum</span></h1>' +
+    '<p class="mute">Route du Rhum 2026 · Saint-Malo → Pointe-à-Pitre<br>Devine les podiums, grimpe au classement.</p></div>' +
+    '<div class="tabsw"><button data-m="login" class="' + (!reg ? 'on' : '') + '">Connexion</button><button data-m="register" class="' + (reg ? 'on' : '') + '">Créer un compte</button></div>' +
+    '<div class="card">' +
+    '<div class="field"><label>Pseudo</label><input id="a_pseudo" autocomplete="username" maxlength="20"></div>' +
+    '<div class="field"><label>Code PIN (4 à 8 lettres/chiffres)</label><input id="a_pin" type="password" autocomplete="' + (reg ? 'new-password' : 'current-password') + '" maxlength="8"></div>' +
+    (reg ? '<div class="field"><label>Code de la ligue (donné par l\'admin)</label><input id="a_code" autocapitalize="characters"></div>' : '') +
+    '<button class="btn" id="a_go">' + (reg ? 'Rejoindre la ligue' : 'Se connecter') + '</button></div></div>';
+}
+
+function bindAuth() {
+  document.querySelectorAll('.tabsw button').forEach(b => b.onclick = () => { S.authMode = b.dataset.m; render(); });
+  const go = () => guard(async () => {
+    const btn = $('#a_go'); btn.disabled = true;
+    try {
+      const body = { pseudo: $('#a_pseudo').value, pin: $('#a_pin').value };
+      if (S.authMode === 'register') body.code = $('#a_code').value;
+      const r = await api(S.authMode, body);
+      S.token = r.token; S.me = r.me; lsSet('prono_token', r.token);
+      const m = await api('me'); S.picks = m.picks; S.draft = JSON.parse(JSON.stringify(m.picks));
+      S.tab = 'picks'; render();
+    } finally { const b = $('#a_go'); if (b) b.disabled = false; }
+  });
+  $('#a_go').onclick = go;
+  document.querySelectorAll('.card input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') go(); });
+}
+
+/* ============ MES PRONOS ============ */
+function skipperInfo(cid, name) { return (S.cfg.skippers[cid] || []).find(s => s.name === name); }
+
+function viewPicks() {
+  const locked = isLocked();
+  S._wasOpen = !locked;
+  let h = '<div class="card dark"><div class="row sp"><div><div class="mute">' + (locked ? 'Pronos verrouillés' : 'Verrouillage dans') + '</div>' +
+    '<div class="count" id="count">…</div></div><span class="pill ' + (locked ? 'bad' : 'ok') + '">' + (locked ? 'Course lancée' : 'Ouvert') + '</span></div>' +
+    '<div class="mute" style="margin-top:6px">Départ : ' + esc(fmtDate(S.cfg.lockISO)) + '</div></div>';
+  const sc = S.cfg.scoring;
+  h += '<div class="card mute">Barème : <b>' + sc.exact + ' pts</b> bon skipper à la bonne place · <b>' + sc.inTop + ' pts</b> dans le top mais mal placé · ' +
+    '<b>+' + sc.winner + '</b> si tu trouves le vainqueur · <b>+' + sc.perfect + '</b> si ton top est parfait.</div>';
+  S.cfg.classes.forEach(c => {
+    const d = S.draft[c.id] || [];
+    const filled = d.filter(Boolean).length;
+    h += '<div class="card"><div class="row sp"><h3>' + esc(c.label) + ' <span class="mute">· top ' + c.n + '</span></h3>' +
+      '<span class="pill ' + (filled === c.n ? 'ok' : 'warn') + '">' + filled + '/' + c.n + '</span></div>';
+    for (let i = 0; i < c.n; i++) {
+      const nm = d[i], info = nm ? skipperInfo(c.id, nm) : null;
+      h += '<button class="slot ' + (nm ? 'filled' : '') + '" data-c="' + c.id + '" data-i="' + i + '" ' + (locked ? 'disabled' : '') + '>' +
+        '<span class="n">' + (i + 1) + '</span><span class="t">' + (nm ? '<b>' + esc(nm) + '</b><small>' + esc(info ? info.boat : '') + '</small>' : '<span class="mute">Choisir un skipper…</span>') + '</span>' +
+        (nm && !locked ? '<span class="mute">✎</span>' : '') + '</button>';
+    }
+    h += '</div>';
+  });
+  if (!locked) h += '<button class="btn" id="save">Enregistrer mes pronos</button><p class="mute" style="text-align:center">Tu peux modifier jusqu\'au départ.</p>';
+  $('#main').innerHTML = h;
+  tick();
+  document.querySelectorAll('.slot').forEach(b => b.onclick = () => openPicker(b.dataset.c, +b.dataset.i));
+  const sv = $('#save');
+  if (sv) sv.onclick = () => guard(async () => {
+    sv.disabled = true;
+    try {
+      await api('savePicks', { picks: S.draft });
+      S.picks = JSON.parse(JSON.stringify(S.draft));
+      toast('Pronos enregistrés ✔');
+    } finally { sv.disabled = false; }
+  });
+}
+
+function openPicker(cid, idx) {
+  const cl = S.cfg.classes.find(c => c.id === cid);
+  const d = S.draft[cid] = S.draft[cid] || [];
+  const bg = document.createElement('div');
+  bg.className = 'sheet-bg';
+  bg.innerHTML = '<div class="sheet"><div class="row sp"><h3>' + esc(cl.label) + ' · place ' + (idx + 1) + '</h3><button class="btn sm sec" id="x">Fermer</button></div>' +
+    '<input id="q" placeholder="Rechercher un skipper ou un bateau…" style="margin-top:10px"><div class="list" id="lst"></div></div>';
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  bg.onclick = e => { if (e.target === bg) close(); };
+  $('#x', bg).onclick = close;
+  const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const draw = () => {
+    const q = norm($('#q', bg).value);
+    const used = d.filter((x, i) => x && i !== idx);
+    let h = d[idx] ? '<button class="opt" data-clear="1" style="color:var(--bad)">✖ Vider cette place</button>' : '';
+    S.cfg.skippers[cid].filter(s => !q || norm(s.name + ' ' + s.boat).indexOf(q) !== -1).forEach(s => {
+      h += '<button class="opt" data-n="' + esc(s.name) + '" ' + (used.indexOf(s.name) !== -1 ? 'disabled' : '') + '>' + esc(s.name) + '<small>' + esc(s.boat) + (used.indexOf(s.name) !== -1 ? ' · déjà choisi' : '') + '</small></button>';
+    });
+    $('#lst', bg).innerHTML = h || '<p class="mute">Aucun résultat.</p>';
+    bg.querySelectorAll('.opt').forEach(o => o.onclick = () => {
+      if (o.dataset.clear) d[idx] = ''; else d[idx] = o.dataset.n;
+      close(); viewPicks();
+    });
+  };
+  $('#q', bg).oninput = draw; draw();
+}
+
+/* ============ CLASSEMENT JOUEURS ============ */
+async function refreshBoard(quiet) {
+  await guard(async () => {
+    S.board = await api('board');
+    if (S.tab === 'board') viewBoard(); else if (S.tab === 'race') viewRace();
+  });
+}
+
+function viewBoard() {
+  if (!S.board) { $('#main').innerHTML = '<p class="mute" style="text-align:center;padding:40px">Chargement…</p>'; refreshBoard(); return; }
+  const b = S.board;
+  let h = '<div class="row sp" style="margin-top:6px"><h2>Classement des joueurs</h2><button class="btn sm sec" id="rf">↻</button></div>';
+  if (!b.locked) h += '<div class="card mute">Les pronos des autres joueurs seront visibles au départ de la course.</div>';
+  const anyRank = Object.keys(b.ranking).some(k => b.ranking[k].length);
+  if (b.locked && !anyRank) h += '<div class="card mute">En attente du premier classement officiel…</div>';
+  b.board.forEach(x => {
+    let mv = '<span class="mv eq">–</span>';
+    if (x.prevRank && x.prevRank !== x.rank) mv = x.rank < x.prevRank ? '<span class="mv up">▲' + (x.prevRank - x.rank) + '</span>' : '<span class="mv down">▼' + (x.rank - x.prevRank) + '</span>';
+    const medal = x.total > 0 ? (x.rank === 1 ? '🥇' : x.rank === 2 ? '🥈' : x.rank === 3 ? '🥉' : x.rank) : x.rank;
+    h += '<button class="lb ' + (x.pseudo === S.me.pseudo ? 'me' : '') + '" data-p="' + esc(x.pseudo) + '"><span class="r">' + medal + '</span>' + mv +
+      '<span class="nm">' + esc(x.pseudo) + '</span><span class="pts">' + x.total + ' <small>pts</small></span></button>';
+    if (S.open === x.pseudo) {
+      if (x.details) {
+        h += '<div class="card det">';
+        S.cfg.classes.forEach(c => {
+          const d = x.details[c.id];
+          h += '<div class="cl">' + esc(c.label) + ' · ' + d.pts + ' pts</div>';
+          d.detail.forEach((l, i) => {
+            h += '<div class="ln"><span class="s-' + l.status + '">' + (i + 1) + '. ' + esc(l.skipper || '—') + '</span><span class="s-' + l.status + '">+' + l.pts + '</span></div>';
+          });
+        });
+        h += '</div>';
+      } else h += '<div class="card mute">Pronos visibles au départ.</div>';
+    }
+  });
+  $('#main').innerHTML = h;
+  $('#rf').onclick = () => refreshBoard();
+  document.querySelectorAll('.lb').forEach(l => l.onclick = () => { S.open = S.open === l.dataset.p ? null : l.dataset.p; viewBoard(); });
+}
+
+/* ============ COURSE (LIVE) ============ */
+function viewRace() {
+  if (!S.board) { $('#main').innerHTML = '<p class="mute" style="text-align:center;padding:40px">Chargement…</p>'; refreshBoard(); return; }
+  const b = S.board, cl = S.cfg.classes.find(c => c.id === S.raceClass), list = b.ranking[cl.id] || [];
+  const mine = S.picks[cl.id] || [];
+  let h = '<div class="row sp" style="margin-top:6px"><h2>Classement course</h2><button class="btn sm sec" id="rf">↻</button></div>' +
+    '<div class="seg" style="margin-top:10px">' + S.cfg.classes.map(c => '<button data-c="' + c.id + '" class="' + (c.id === cl.id ? 'on' : '') + '">' + esc(c.label) + '</button>').join('') + '</div>';
+  h += '<div class="card"><div class="row sp"><h3>' + esc(cl.label) + ' · top ' + cl.n + '</h3>' +
+    (b.finals[cl.id] ? '<span class="pill ok">Final</span>' : '<span class="pill warn">En cours</span>') + '</div>';
+  if (!list.length) h += '<p class="mute">Pas encore de classement officiel pour cette classe.</p>';
+  list.forEach((s, i) => {
+    const info = skipperInfo(cl.id, s), pi = mine.indexOf(s);
+    const tag = pi === i ? '<span class="pill ok">ton prono ✔</span>' : pi >= 0 ? '<span class="pill warn">ton #' + (pi + 1) + '</span>' : '';
+    h += '<div class="rk"><span class="n">' + (i + 1) + '</span><div style="flex:1;min-width:0"><b>' + esc(s) + '</b><div class="mute">' + esc(info ? info.boat : '') + '</div></div>' + tag + '</div>';
+  });
+  h += '<p class="mute" style="margin-bottom:0">Dernière mise à jour : ' + esc(fmtTime(b.updatedAt[cl.id])) + '</p></div>';
+  $('#main').innerHTML = h;
+  $('#rf').onclick = () => refreshBoard();
+  document.querySelectorAll('.seg button').forEach(x => x.onclick = () => { S.raceClass = x.dataset.c; viewRace(); });
+}
+
+/* ============ ADMIN ============ */
+function toLocalInput(iso) {
+  const d = new Date(iso), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+async function viewAdmin() {
+  if (!S.adm) {
+    $('#main').innerHTML = '<p class="mute" style="text-align:center;padding:40px">Chargement…</p>';
+    await guard(async () => { S.adm = await api('adminGet'); S.board = S.board || await api('board'); });
+    if (!S.adm) return;
+  }
+  const a = S.adm, st = a.settings, rk = (S.board && S.board.ranking) || {};
+  let h = '<h2 style="margin-top:6px">Administration</h2>';
+  h += '<div class="card"><h3>Réglages</h3>' +
+    '<div class="field"><label>Code de la ligue</label><input id="s_code" value="' + esc(st.leagueCode) + '"></div>' +
+    '<div class="field"><label>Verrouillage des pronos (heure de Paris)</label><input id="s_lock" type="datetime-local" value="' + toLocalInput(st.lockISO) + '"></div>' +
+    '<div class="field"><label>URL de la source du classement live (optionnel)</label><input id="s_src" value="' + esc(st.sourceUrl) + '" placeholder="https://…"></div>' +
+    '<div class="row sp field"><span>Mode manuel uniquement</span><input id="s_man" type="checkbox" style="width:auto" ' + (st.manualOnly ? 'checked' : '') + '></div>' +
+    '<button class="btn" id="s_save">Enregistrer les réglages</button>' +
+    '<button class="btn sec" id="s_ref" style="margin-top:8px">Rafraîchir le classement depuis la source</button></div>';
+
+  h += '<div class="card"><h3>Classement officiel (saisie manuelle)</h3><p class="mute">Sert de secours ou pour corriger. Le déclencheur automatique écrase ces valeurs si le mode manuel est désactivé.</p>';
+  S.cfg.classes.forEach(c => {
+    h += '<div class="cl" style="margin-top:12px;color:var(--acc2);font-weight:800">' + esc(c.label) + '</div>';
+    for (let i = 0; i < c.n; i++) {
+      h += '<div class="field"><select data-rc="' + c.id + '" data-ri="' + i + '"><option value="">— place ' + (i + 1) + ' —</option>' +
+        S.cfg.skippers[c.id].map(s => '<option value="' + esc(s.name) + '"' + ((rk[c.id] || [])[i] === s.name ? ' selected' : '') + '>' + esc(s.name) + ' · ' + esc(s.boat) + '</option>').join('') + '</select></div>';
+    }
+    h += '<label class="row"><input type="checkbox" data-fin="' + c.id + '" style="width:auto" ' + (a.finals[c.id] ? 'checked' : '') + '> Classement final de la classe</label>';
+  });
+  h += '<button class="btn" id="r_save" style="margin-top:12px">Publier le classement</button></div>';
+
+  h += '<div class="card"><h3>Joueurs (' + a.users.length + ')</h3>';
+  a.users.forEach(u => {
+    h += '<div class="u"><div><b>' + esc(u.pseudo) + '</b> ' + (u.role === 'admin' ? '<span class="pill">admin</span>' : '') + '<div class="mute">inscrit le ' + esc(fmtTime(u.createdAt)) + '</div></div>' +
+      (u.role === 'admin' ? '' : '<div class="row"><button class="btn sm sec" data-pin="' + esc(u.pseudo) + '">Reset PIN</button><button class="btn sm danger" data-del="' + esc(u.pseudo) + '">✖</button></div>') + '</div>';
+  });
+  h += '</div>';
+  $('#main').innerHTML = h;
+
+  $('#s_save').onclick = () => guard(async () => {
+    const lock = $('#s_lock').value;
+    await api('adminSettings', { settings: {
+      leagueCode: $('#s_code').value, lockISO: new Date(lock).toISOString(), sourceUrl: $('#s_src').value, manualOnly: $('#s_man').checked
+    } });
+    S.cfg = await api('config'); S.adm = null; toast('Réglages enregistrés ✔'); viewAdmin();
+  });
+  $('#s_ref').onclick = () => guard(async () => {
+    const r = await api('adminRefresh');
+    S.board = await api('board');
+    toast(r && r.skipped ? 'Source non active (mode manuel ou URL vide)' : r.changed ? 'Classement mis à jour ✔' : 'Aucun changement');
+    S.adm = null; viewAdmin();
+  });
+  $('#r_save').onclick = () => guard(async () => {
+    const ranking = {}, finals = {};
+    S.cfg.classes.forEach(c => { ranking[c.id] = []; finals[c.id] = !!document.querySelector('[data-fin="' + c.id + '"]').checked; });
+    document.querySelectorAll('[data-rc]').forEach(s => { if (s.value) ranking[s.dataset.rc].push(s.value); });
+    const r = await api('adminSetRanking', { ranking: ranking, finals: finals });
+    S.board = await api('board'); S.cfg = await api('config');
+    toast(r.changed ? 'Classement publié ✔' : 'Aucun changement');
+  });
+  document.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => guard(async () => {
+    const pin = prompt('Nouveau PIN pour ' + b.dataset.pin + ' (4 à 8 caractères) :');
+    if (!pin) return;
+    await api('adminResetPin', { pseudo: b.dataset.pin, pin: pin }); toast('PIN modifié ✔');
+  }));
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
+    if (!confirm('Supprimer ' + b.dataset.del + ' et ses pronos ?')) return;
+    await api('adminDeleteUser', { pseudo: b.dataset.del }); S.adm = null; S.board = null; toast('Joueur supprimé'); viewAdmin();
+  }));
+}
+
+boot();
+</script>
+</body>
+</html>
