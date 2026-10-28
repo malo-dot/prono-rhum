@@ -493,15 +493,16 @@ function bindAuth() {
 function skipperInfo(cid, name) { return (S.cfg.skippers[cid] || []).find(s => s.name === name); }
 
 function rulesCard(open) {
-  const sc = S.cfg.scoring, mx = S.cfg.classes.reduce((a, c) => a + c.n * sc.exact + sc.winner + sc.perfect, 0);
-  const per = S.cfg.classes[0].n * sc.exact + sc.winner + sc.perfect;
+  const sc = S.cfg.scoring, mx = S.cfg.classes.reduce((a, c) => a + c.n * sc.exact + sc.winner + (sc.perfect3 || 0) + sc.perfect, 0);
+  const per = S.cfg.classes[0].n * sc.exact + sc.winner + (sc.perfect3 || 0) + sc.perfect;
   return '<details class="card rules"' + (open ? ' open' : '') + '><summary>📖 Règles et comment gagner</summary>' +
     '<p><b>Le principe :</b> pour chaque classe (' + S.cfg.classes.map(c => esc(c.label)).join(', ') + '), tu prédis le <b>top ' + S.cfg.classes[0].n + '</b> de la Route du Rhum, dans l\'ordre. Tu peux modifier tes pronos jusqu\'au départ (' + esc(fmtDate(S.cfg.lockISO)) + '), ensuite tout est verrouillé et chacun voit les pronos des autres.</p>' +
     '<p><b>Les points, classe par classe :</b></p><ul>' +
     '<li><b>+' + sc.exact + ' pts</b> : ton skipper finit exactement à la place que tu avais choisie.</li>' +
     '<li><b>+' + sc.inTop + ' pts</b> : ton skipper est bien dans le top ' + S.cfg.classes[0].n + ', mais pas à la bonne place.</li>' +
     '<li><b>+' + sc.winner + ' pts</b> de bonus si tu avais mis le bon vainqueur en 1re place.</li>' +
-    '<li><b>+' + sc.perfect + ' pts</b> de bonus si ton top est parfait (tous les skippers à la bonne place).</li></ul>' +
+    '<li><b>+' + (sc.perfect3 || 0) + ' pts</b> de bonus si ton top 3 est parfait (les 3 premiers à la bonne place).</li>' +
+    '<li><b>+' + sc.perfect + ' pts</b> de bonus en plus si ton top est parfait (tous les skippers à la bonne place).</li></ul>' +
     '<p>Maximum : ' + per + ' pts par classe, ' + mx + ' pts au total.</p>' +
     '<p><b>Pendant la course :</b> le classement officiel est mis à jour régulièrement, donc les points et les flèches ▲▼ bougent jusqu\'à l\'arrivée. En cas d\'égalité, celui qui a le plus de skippers à la bonne place passe devant.</p>' +
     '<p><b>Pour gagner :</b></p><ul>' +
