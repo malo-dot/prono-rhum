@@ -1,7 +1,7 @@
-# Prono du Rhum — mise en ligne (15 min)
+# MPP RDR 2026 — mise en ligne (15 min)
 
 ## 1. Backend (Google Sheet + Apps Script)
-1. Crée un **nouveau Google Sheet** (nom : « Prono du Rhum »).
+1. Crée un **nouveau Google Sheet** (nom : « MPP RDR 2026 »).
 2. `Extensions > Apps Script` → supprime le contenu → colle tout `Code.gs`.
 3. En haut du script, change `ADMIN_PIN` (et `ADMIN_PSEUDO` si besoin). Le code de ligue par défaut est `RHUM2026`.
 4. Choisis la fonction `setup` dans la barre du haut → ▶ Exécuter → autorise l'accès.

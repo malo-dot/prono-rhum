@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1b2745">
-<title>Prono du Rhum</title>
+<title>MPP RDR 2026</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap">
 <style>
@@ -230,7 +230,7 @@ function render() {
   if (!S.me) { app.innerHTML = authView(); bindAuth(); return; }
   const isAdm = S.me.role === 'admin';
   app.innerHTML =
-    '<header class="top"><div class="wrap"><div class="brand"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#f9ed37"/><path d="M15 29 L29 29 L22 15Z" fill="#82bebf"/><rect x="1" y="17" width="12" height="12" fill="#fff"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()">Prono du <span>Rhum</span></div>' +
+    '<header class="top"><div class="wrap"><div class="brand"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#f9ed37"/><path d="M15 29 L29 29 L22 15Z" fill="#82bebf"/><rect x="1" y="17" width="12" height="12" fill="#fff"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()">MPP <span>RDR 2026</span></div>' +
     '<div class="who">' + esc(S.me.pseudo) + (isAdm ? ' <span class="pill">admin</span>' : '') + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
     '<main class="wrap" id="main"></main><p class="foot">Jeu de pronos entre amis · application non officielle</p>' +
     '<nav class="tabs"><div class="in">' +
@@ -248,7 +248,7 @@ function tabBtn(t, ic, l) { return '<button data-t="' + t + '" class="' + (S.tab
 
 function authView() {
   const reg = S.authMode === 'register';
-  return '<div class="wrap"><div class="hero"><svg class="art" viewBox="0 0 320 170" aria-hidden="true"><rect width="320" height="170" fill="#1b2745"/><circle cx="238" cy="60" r="46" fill="#f9ed37"/><path d="M118 112 V22 L180 112Z" fill="#fff"/><path d="M110 112 V44 L64 112Z" fill="#82bebf"/><rect x="58" y="108" width="130" height="9" fill="#f9ed37"/><path d="M0 124 Q40 104 80 124 T160 124 T240 124 T320 124 V170 H0Z" fill="#82bebf"/><path d="M0 142 Q40 122 80 142 T160 142 T240 142 T320 142 V170 H0Z" fill="#fff"/><path d="M0 160 Q40 142 80 160 T160 160 T240 160 T320 160 V170 H0Z" fill="#f9ed37"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()"><h1>Prono<br><span>du Rhum</span></h1>' +
+  return '<div class="wrap"><div class="hero"><svg class="art" viewBox="0 0 320 170" aria-hidden="true"><rect width="320" height="170" fill="#1b2745"/><circle cx="238" cy="60" r="46" fill="#f9ed37"/><path d="M118 112 V22 L180 112Z" fill="#fff"/><path d="M110 112 V44 L64 112Z" fill="#82bebf"/><rect x="58" y="108" width="130" height="9" fill="#f9ed37"/><path d="M0 124 Q40 104 80 124 T160 124 T240 124 T320 124 V170 H0Z" fill="#82bebf"/><path d="M0 142 Q40 122 80 142 T160 142 T240 142 T320 142 V170 H0Z" fill="#fff"/><path d="M0 160 Q40 142 80 160 T160 160 T240 160 T320 160 V170 H0Z" fill="#f9ed37"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()"><h1>MPP<br><span>RDR 2026</span></h1>' +
     '<p class="mute">Route du Rhum 2026 · Saint-Malo → Pointe-à-Pitre<br>Devine les podiums, grimpe au classement.</p></div>' +
     '<div class="tabsw"><button data-m="login" class="' + (!reg ? 'on' : '') + '">Connexion</button><button data-m="register" class="' + (reg ? 'on' : '') + '">Créer un compte</button></div>' +
     '<div class="card">' +

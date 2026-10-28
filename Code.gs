@@ -548,5 +548,5 @@ function doPost(e) {
 }
 
 function doGet() {
-  return ContentService.createTextOutput(JSON.stringify({ ok: true, data: 'Prono du Rhum API' })).setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({ ok: true, data: 'MPP RDR 2026 API' })).setMimeType(ContentService.MimeType.JSON);
 }
