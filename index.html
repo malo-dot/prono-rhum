@@ -271,11 +271,10 @@ function render() {
     '<div class="who">' + esc(S.me.pseudo) + (isAdm ? ' <span class="pill">admin</span>' : (S.me.league ? ' <span class="pill">' + esc(S.me.league.name) + '</span>' : '')) + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
     '<main class="wrap" id="main"></main><p class="foot">Jeu de pronos entre amis · application non officielle</p>' +
     '<nav class="tabs"><div class="in">' +
-    (isAdm ? tabBtn('admin', '■', 'Admin') : tabBtn('picks', '◎', 'Pronos')) + tabBtn('board', '▲', 'Joueurs') + tabBtn('chat', '✉', 'Chat') + tabBtn('race', '≋', 'Course') +
+    (isAdm ? tabBtn('admin', '■', 'Admin') + tabBtn('picks', '◎', 'Test') : tabBtn('picks', '◎', 'Pronos')) + tabBtn('board', '▲', 'Joueurs') + tabBtn('chat', '✉', 'Chat') + tabBtn('race', '≋', 'Course') +
     '</div></nav>';
   $('#out').onclick = () => logout();
   document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
-  if (isAdm && S.tab === 'picks') S.tab = 'admin';
   if (S.tab === 'picks') viewPicks();
   else if (S.tab === 'chat') viewChat();
   else if (S.tab === 'board') viewBoard();
@@ -307,7 +306,7 @@ function bindAuth() {
       const r = await api(S.authMode, body);
       S.token = r.token; S.me = r.me; lsSet('prono_token', r.token); if (S.me.role === 'admin') S.tab = 'admin';
       const m = await api('me'); S.picks = m.picks; S.draft = JSON.parse(JSON.stringify(m.picks));
-      S.tab = 'picks'; render();
+      S.tab = S.me.role === 'admin' ? 'admin' : 'picks'; render();
     } finally { const b = $('#a_go'); if (b) b.disabled = false; }
   });
   $('#a_go').onclick = go;
@@ -332,13 +331,16 @@ function rulesCard(open) {
     '<p><b>Pour gagner :</b></p><ul>' +
     '<li>Le vainqueur de chaque classe est le prono le plus rentable : ' + (sc.exact + sc.winner) + ' pts d\'un coup.</li>' +
     '<li>Un skipper dans le top, même mal placé, rapporte quand même ' + sc.inTop + ' pts : mieux vaut miser sur des skippers solides que sur un pari risqué.</li>' +
-    '<li>Les 4 classes comptent autant : ne laisse aucune classe vide, un top incomplet ne s\'enregistre pas.</li></ul></details>';
+    '<li>Les 4 classes comptent autant : ne laisse aucune classe vide, un top incomplet ne s\'enregistre pas.</li></ul>' +
+    '<p style="margin-top:14px;padding:10px;background:var(--yellow);border-radius:var(--radius);text-align:center"><b>🍹 Le grand gagnant se verra offrir un ti\' punch !</b><br><span class="mute" style="color:var(--navy)">Valable à consommer avec modération, et à partager avec les perdants (surtout ceux qui avaient misé sur le mauvais Ultim).</span></p></details>';
 }
 
 function viewPicks() {
-  const locked = isLocked();
-  S._wasOpen = !locked;
-  let h = '<div class="card dark"><div class="row sp"><div><div class="mute">' + (locked ? 'Pronos verrouillés' : 'Verrouillage dans') + '</div>' +
+  const adm = S.me.role === 'admin';
+  const locked = isLocked() && !adm;   // l'admin peut toujours tester l'écran de pronos
+  S._wasOpen = !locked && !adm;   // l'admin ne déclenche pas le re-rendu automatique au verrouillage
+  let h = adm ? '<div class="card" style="background:var(--yellow)"><b>Mode test (vue joueur)</b><div class="mute" style="color:var(--navy)">Tu vois l\'écran tel que le voit un joueur. Rien n\'est enregistré et ton compte ne joue pas.</div></div>' : '';
+  h += '<div class="card dark"><div class="row sp"><div><div class="mute">' + (locked ? 'Pronos verrouillés' : 'Verrouillage dans') + '</div>' +
     '<div class="count" id="count">…</div></div><span class="pill ' + (locked ? 'bad' : 'ok') + '">' + (locked ? 'Course lancée' : 'Ouvert') + '</span></div>' +
     '<div class="mute" style="margin-top:6px">Départ : ' + esc(fmtDate(S.cfg.lockISO)) + '</div></div>';
   h += rulesCard(!Object.keys(S.picks || {}).length);
@@ -363,6 +365,7 @@ function viewPicks() {
   if (sv) sv.onclick = () => guard(async () => {
     sv.disabled = true;
     try {
+      if (S.me.role === 'admin') { toast('Mode test : rien n\'est enregistré'); return; }
       await api('savePicks', { picks: S.draft });
       S.picks = JSON.parse(JSON.stringify(S.draft));
       toast('Pronos enregistrés ✔');
