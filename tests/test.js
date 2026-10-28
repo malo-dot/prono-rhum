@@ -13,10 +13,10 @@ ok('scoring: classement partiel sans bonus parfait', () => assert.equal(X.scoreC
 const adm = call('login', { pseudo: 'malo', pin: 'admin1' });
 ok('login admin', () => assert.equal(adm.me.role, 'admin'));
 throws('mauvais PIN refusé', () => call('login', { pseudo: 'Malo', pin: 'xxxx' }), /incorrect/);
-throws('code ligue faux refusé', () => call('register', { pseudo: 'Lea', pin: '1234', code: 'FAUX' }), /Code de ligue/);
-const lea = call('register', { pseudo: 'Lea', pin: '1234', code: 'rhum2026' });
-const tom = call('register', { pseudo: 'Tom', pin: 'abcd', code: 'RHUM2026' });
-throws('pseudo doublon refusé', () => call('register', { pseudo: 'lea', pin: '1234', code: 'RHUM2026' }), /déjà pris/);
+throws('code ligue faux refusé', () => call('register', { pseudo: 'Lea', pin: '123456', code: 'FAUX' }), /Code de ligue/);
+const lea = call('register', { pseudo: 'Lea', pin: '123456', code: 'rhum2026' });
+const tom = call('register', { pseudo: 'Tom', pin: 'abcd12', code: 'RHUM2026' });
+throws('pseudo doublon refusé', () => call('register', { pseudo: 'lea', pin: '123456', code: 'RHUM2026' }), /déjà pris/);
 throws('jeton falsifié refusé', () => call('me', { token: lea.token.slice(0, -3) + 'AAA' }), /Session expirée/);
 throws('jeton d\'un autre refusé (pseudo modifié)', () => { const [p, s] = lea.token.split('.'); const o = JSON.parse(Buffer.from(p, 'base64url')); o.p = 'Malo'; call('me', { token: Buffer.from(JSON.stringify(o)).toString('base64url') + '.' + s }); }, /Session expirée/);
 
@@ -57,15 +57,15 @@ ok('flèches: prevRank mémorisé et cache invalidé', () => { const t = b.board
 ok('parseSource_ JSON objet', () => assert.deepEqual(Object.keys(X.parseSource_(JSON.stringify({ Class40: ['A'], 'Ocean Fifty': ['B'] }))).sort(), ['CLASS40', 'OCEAN50']));
 ok('matchSkipper_ tolère accents / ordre', () => { assert.equal(X.matchSkipper_('Axel Trehin', sk.CLASS40), 'Axel TRÉHIN'); assert.equal(X.matchSkipper_('RIOU Vincent', sk.CLASS40), 'Vincent RIOU'); });
 
-call('adminResetPin', { token: adm.token, pseudo: 'Tom', pin: 'neuf9' });
+call('adminResetPin', { token: adm.token, pseudo: 'Tom', pin: 'neuf99' });
 ok('reset PIN → ancien jeton invalide, nouveau PIN OK', () => {
   assert.throws(() => call('me', { token: tom.token }), /Session expirée/);
-  assert.equal(call('login', { pseudo: 'Tom', pin: 'neuf9' }).me.pseudo, 'Tom');
+  assert.equal(call('login', { pseudo: 'Tom', pin: 'neuf99' }).me.pseudo, 'Tom');
 });
 ok('anti force brute: 8 échecs => blocage', () => {
   for (let i = 0; i < 8; i++) assert.throws(() => call('login', { pseudo: 'Lea', pin: 'bad' + i }), /incorrect/);
-  assert.throws(() => call('login', { pseudo: 'Lea', pin: '1234' }), /Trop d'essais/);
-  X.cacheDel_('fail_lea'); assert.equal(call('login', { pseudo: 'Lea', pin: '1234' }).me.pseudo, 'Lea');
+  assert.throws(() => call('login', { pseudo: 'Lea', pin: '123456' }), /Trop d'essais/);
+  X.cacheDel_('fail_lea'); assert.equal(call('login', { pseudo: 'Lea', pin: '123456' }).me.pseudo, 'Lea');
 });
 call('adminDeleteUser', { token: adm.token, pseudo: 'Tom' });
 ok('suppression joueur: jeton invalide + classement à jour', () => {
@@ -84,7 +84,7 @@ X.setConfig_('lockISO', new Date(Date.now() + 3600e3).toISOString());
 const lg = call('adminLeagueSave', { token: adm.token, name: 'Famille', code: 'FAM26' });
 throws('code de ligue en doublon refusé', () => call('adminLeagueSave', { token: adm.token, name: 'Autre', code: 'fam26' }), /déjà utilisé/);
 throws('non-admin ne crée pas de ligue', () => call('adminLeagueSave', { token: lea.token, name: 'X', code: 'XXXX' }), /admin/);
-const zoe = call('register', { pseudo: 'Zoe', pin: '4321', code: 'fam26' });
+const zoe = call('register', { pseudo: 'Zoe', pin: '432100', code: 'fam26' });
 ok('inscription via le code → bonne ligue', () => assert.equal(zoe.me.league.name, 'Famille'));
 ok('classement de ligue séparé du général', () => {
   call('savePicks', { token: zoe.token, picks: { ULTIM: U } });
@@ -161,4 +161,6 @@ ok('admin voit une ligue précise ou le général', () => {
   assert.deepEqual(call('board', { token: adm.token, scope: famId }).board.map(x => x.pseudo), ['Zoe']);
   assert.ok(call('board', { token: adm.token }).board.length >= 2);
 });
+throws('mot de passe trop court refusé', () => call('register', { pseudo: 'Court', pin: '1234', code: 'RHUM2026' }), /6 caractères/);
+ok('mot de passe avec espaces et symboles accepté', () => { const r = call('register', { pseudo: 'Sym', pin: 'Mon mot de passe !é', code: 'RHUM2026' }); assert.equal(call('login', { pseudo: 'Sym', pin: 'Mon mot de passe !é' }).me.pseudo, 'Sym'); });
 console.log('\n' + n + ' tests OK');

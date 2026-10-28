@@ -267,7 +267,7 @@ function userByToken_(token) {
   try { o = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString()); } catch (e) { return null; }
   if (!o || o.e < Date.now()) return null;
   const u = usersMap_()[String(o.p).toLowerCase()];
-  if (!u || u.active !== 'true' || u.salt.slice(0, 8) !== o.s) return null;   // PIN réinitialisé ou joueur supprimé => jeton invalide
+  if (!u || u.active !== 'true' || u.salt.slice(0, 8) !== o.s) return null;   // mot de passe réinitialisé ou joueur supprimé => jeton invalide
   return u;
 }
 
@@ -298,7 +298,7 @@ function register_(b) {
   const pseudo = cleanPseudo_(b.pseudo);
   const pin = String(b.pin || '');
   if (pseudo.length < 2 || pseudo.length > 20) throw new Error('Pseudo : 2 à 20 caractères.');
-  if (!/^[A-Za-z0-9]{4,8}$/.test(pin)) throw new Error('Code PIN : 4 à 8 caractères (lettres/chiffres).');
+  if (pin.length < 6 || pin.length > 64 || !pin.trim()) throw new Error('Mot de passe : 6 caractères minimum.');
   const code = String(b.code || '').trim().toUpperCase();
   const lm = leaguesMap_();
   const lg = Object.keys(lm).map(k => lm[k]).find(l => l.code.toUpperCase() === code);
@@ -320,7 +320,7 @@ function login_(b) {
   const u = usersMap_()[key];
   if (!u || u.active !== 'true' || hash_(String(b.pin || ''), u.salt) !== u.hash) {
     cache.put(fk, String(fails + 1), 300);
-    throw new Error('Pseudo ou PIN incorrect.');
+    throw new Error('Pseudo ou mot de passe incorrect.');
   }
   cache.remove(fk);
   return { token: makeToken_(u), me: meOf_(u) };
@@ -656,7 +656,7 @@ function adminSetRanking_(b) {
 function adminResetPin_(b) {
   requireAdmin_(b);
   const pin = String(b.pin || '');
-  if (!/^[A-Za-z0-9]{4,8}$/.test(pin)) throw new Error('PIN : 4 à 8 caractères.');
+  if (pin.length < 6 || pin.length > 64 || !pin.trim()) throw new Error('Mot de passe : 6 caractères minimum.');
   const users = rows_('Users');
   const u = users.find(x => x.pseudo === b.pseudo);
   if (!u) throw new Error('Joueur introuvable.');

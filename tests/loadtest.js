@@ -11,9 +11,9 @@ function measure(label, fn, times) {
   console.log(label.padEnd(44), 'lectures Sheet/appel:', ((X.ops.reads - r0) / times).toFixed(2).padStart(6), '| écritures/appel:', ((X.ops.writes - w0) / times).toFixed(2).padStart(5), '| CPU/appel:', (ms / times).toFixed(2) + ' ms');
 }
 console.log('=== ' + N + ' joueurs, Sheet qui grossit ===');
-measure('inscription (écriture, sous verrou)', i => toks.push(call('register', { pseudo: 'Joueur' + i, pin: 'pin' + (1000 + i), code: 'RHUM2026' }).token), N);
+measure('inscription (écriture, sous verrou)', i => toks.push(call('register', { pseudo: 'Joueur' + i, pin: 'passw' + (1000 + i), code: 'RHUM2026' }).token), N);
 measure('enregistrer ses pronos (4 classes)', i => call('savePicks', { token: toks[i], picks: { ULTIM: pick('ULTIM', 5), OCEAN50: pick('OCEAN50', 5), IMOCA: pick('IMOCA', 5), CLASS40: pick('CLASS40', 5) } }), N);
-measure('connexion (avant: réécrivait toute la table)', i => call('login', { pseudo: 'Joueur' + i, pin: 'pin' + (1000 + i) }), N);
+measure('connexion (avant: réécrivait toute la table)', i => call('login', { pseudo: 'Joueur' + i, pin: 'passw' + (1000 + i) }), N);
 measure('ouvrir l\'app (config + me)', i => { call('config', {}); call('me', { token: toks[i] }); }, N);
 X.setConfig_('lockISO', new Date(Date.now() - 1000).toISOString());
 const adm = call('login', { pseudo: 'Malo', pin: 'admin1' });

@@ -291,7 +291,7 @@ function authView() {
     '<div class="tabsw"><button data-m="login" class="' + (!reg ? 'on' : '') + '">Connexion</button><button data-m="register" class="' + (reg ? 'on' : '') + '">Créer un compte</button></div>' +
     '<div class="card">' +
     '<div class="field"><label>Pseudo</label><input id="a_pseudo" autocomplete="username" maxlength="20"></div>' +
-    '<div class="field"><label>Code PIN (4 à 8 lettres/chiffres)</label><input id="a_pin" type="password" autocomplete="' + (reg ? 'new-password' : 'current-password') + '" maxlength="8"></div>' +
+    '<div class="field"><label>Mot de passe' + (reg ? ' (6 caractères minimum)' : '') + '</label><input id="a_pin" type="password" autocomplete="' + (reg ? 'new-password' : 'current-password') + '" maxlength="64"></div>' +
     (reg ? '<div class="field"><label>Code de ta ligue (donné par l\'admin)</label><input id="a_code" autocapitalize="characters"></div>' : '') +
     '<button class="btn" id="a_go">' + (reg ? 'Rejoindre la ligue' : 'Se connecter') + '</button></div></div>';
 }
@@ -592,7 +592,7 @@ async function viewAdmin() {
   h += '<div class="card"><h3>Joueurs (' + a.users.length + ')</h3>';
   a.users.forEach(u => {
     h += '<div class="u"><div><b>' + esc(u.pseudo) + '</b> ' + (u.role === 'admin' ? '<span class="pill">admin</span>' : '') + (u.role === 'admin' ? '' : '<select data-mv="' + esc(u.pseudo) + '" style="margin-top:6px;padding:6px">' + a.leagues.map(l => '<option value="' + esc(l.id) + '"' + (l.id === u.league ? ' selected' : '') + '>' + esc(l.name) + '</option>').join('') + '</select>') + '</div>' +
-      (u.role === 'admin' ? '' : '<div class="row"><button class="btn sm sec" data-pin="' + esc(u.pseudo) + '">Reset PIN</button><button class="btn sm danger" data-del="' + esc(u.pseudo) + '">✖</button></div>') + '</div>';
+      (u.role === 'admin' ? '' : '<div class="row"><button class="btn sm sec" data-pin="' + esc(u.pseudo) + '">Reset mot de passe</button><button class="btn sm danger" data-del="' + esc(u.pseudo) + '">✖</button></div>') + '</div>';
   });
   h += '</div>';
   $('#main').innerHTML = h;
@@ -638,9 +638,9 @@ async function viewAdmin() {
     S.adm = null; S.board = null; toast('Joueur déplacé ✔'); viewAdmin();
   }));
   document.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => guard(async () => {
-    const pin = prompt('Nouveau PIN pour ' + b.dataset.pin + ' (4 à 8 caractères) :');
+    const pin = prompt('Nouveau mot de passe pour ' + b.dataset.pin + ' (6 caractères minimum) :');
     if (!pin) return;
-    await api('adminResetPin', { pseudo: b.dataset.pin, pin: pin }); toast('PIN modifié ✔');
+    await api('adminResetPin', { pseudo: b.dataset.pin, pin: pin }); toast('Mot de passe modifié ✔');
   }));
   document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
     if (!confirm('Supprimer ' + b.dataset.del + ' et ses pronos ?')) return;
