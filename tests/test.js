@@ -1,5 +1,5 @@
 const assert = require('assert'), load = require('./harness');
-const X = load(__dirname + '/../Code.gs');
+const X = load(__dirname + '/Code.gs');
 X.setup();
 const call = (action, b) => X.handle_(Object.assign({ action }, b));
 let n = 0; const ok = (name, fn) => { fn(); n++; console.log('✔', name); };
@@ -77,5 +77,34 @@ ok('doPost: format JSON + BUSY géré', () => {
   assert.equal(r.ok, true);
   const e = JSON.parse(X.doPost({ postData: { contents: JSON.stringify({ action: 'nimporte' }) } }).t);
   assert.equal(e.ok, false);
+});
+
+// ---- ligues (un joueur = une ligue) ----
+X.setConfig_('lockISO', new Date(Date.now() + 3600e3).toISOString());
+const lg = call('adminLeagueSave', { token: adm.token, name: 'Famille', code: 'FAM26' });
+throws('code de ligue en doublon refusé', () => call('adminLeagueSave', { token: adm.token, name: 'Autre', code: 'fam26' }), /déjà utilisé/);
+throws('non-admin ne crée pas de ligue', () => call('adminLeagueSave', { token: lea.token, name: 'X', code: 'XXXX' }), /admin/);
+const zoe = call('register', { pseudo: 'Zoe', pin: '4321', code: 'fam26' });
+ok('inscription via le code → bonne ligue', () => assert.equal(zoe.me.league.name, 'Famille'));
+ok('classement de ligue séparé du général', () => {
+  call('savePicks', { token: zoe.token, picks: { ULTIM: U } });
+  const own = call('board', { token: zoe.token });
+  assert.deepEqual(own.board.map(x => x.pseudo), ['Zoe']);
+  assert.equal(own.leagueName, 'Famille');
+  const all = call('board', { token: zoe.token, scope: 'all' });
+  assert.equal(all.board.length, 3);
+  assert.equal(call('board', { token: lea.token }).board.some(x => x.pseudo === 'Zoe'), false);
+});
+ok('déplacer un joueur met les classements à jour', () => {
+  const L1 = call('adminGet', { token: adm.token }).leagues.find(l => l.name !== 'Famille').id;
+  call('adminMoveUser', { token: adm.token, pseudo: 'Zoe', league: L1 });
+  assert.equal(call('board', { token: lea.token }).board.some(x => x.pseudo === 'Zoe'), true);
+  call('adminMoveUser', { token: adm.token, pseudo: 'Zoe', league: lg ? call('adminGet', { token: adm.token }).leagues.find(l => l.name === 'Famille').id : '' });
+});
+throws('supprimer une ligue non vide refusé', () => call('adminLeagueDelete', { token: adm.token, id: call('adminGet', { token: adm.token }).leagues.find(l => l.name === 'Famille').id }), /encore des joueurs/);
+ok('renommer une ligue', () => {
+  const id = call('adminGet', { token: adm.token }).leagues.find(l => l.name === 'Famille').id;
+  call('adminLeagueSave', { token: adm.token, id: id, name: 'Famille 2', code: 'FAM26' });
+  assert.equal(call('me', { token: zoe.token }).me.league.name, 'Famille 2');
 });
 console.log('\n' + n + ' tests OK');

@@ -144,7 +144,7 @@ function toast(msg, err) {
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const WRITES = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh'];
+const WRITES = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser'];
 
 async function api(action, data) {
   if (!API_URL || API_URL.indexOf('COLLE_ICI') === 0) throw new Error('API_URL non configurée dans index.html');
@@ -249,7 +249,7 @@ function render() {
   const isAdm = S.me.role === 'admin';
   app.innerHTML =
     '<header class="top"><div class="wrap"><div class="brand"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#f9ed37"/><path d="M15 29 L29 29 L22 15Z" fill="#82bebf"/><rect x="1" y="17" width="12" height="12" fill="#fff"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()">MPP <span>RDR 2026</span></div>' +
-    '<div class="who">' + esc(S.me.pseudo) + (isAdm ? ' <span class="pill">admin</span>' : '') + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
+    '<div class="who">' + esc(S.me.pseudo) + (isAdm ? ' <span class="pill">admin</span>' : (S.me.league ? ' <span class="pill">' + esc(S.me.league.name) + '</span>' : '')) + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
     '<main class="wrap" id="main"></main><p class="foot">Jeu de pronos entre amis · application non officielle</p>' +
     '<nav class="tabs"><div class="in">' +
     tabBtn('picks', '◎', 'Pronos') + tabBtn('board', '▲', 'Joueurs') + tabBtn('race', '≋', 'Course') +
@@ -272,7 +272,7 @@ function authView() {
     '<div class="card">' +
     '<div class="field"><label>Pseudo</label><input id="a_pseudo" autocomplete="username" maxlength="20"></div>' +
     '<div class="field"><label>Code PIN (4 à 8 lettres/chiffres)</label><input id="a_pin" type="password" autocomplete="' + (reg ? 'new-password' : 'current-password') + '" maxlength="8"></div>' +
-    (reg ? '<div class="field"><label>Code de la ligue (donné par l\'admin)</label><input id="a_code" autocapitalize="characters"></div>' : '') +
+    (reg ? '<div class="field"><label>Code de ta ligue (donné par l\'admin)</label><input id="a_code" autocapitalize="characters"></div>' : '') +
     '<button class="btn" id="a_go">' + (reg ? 'Rejoindre la ligue' : 'Se connecter') + '</button></div></div>';
 }
 
@@ -364,8 +364,8 @@ function openPicker(cid, idx) {
 /* ============ CLASSEMENT JOUEURS ============ */
 async function refreshBoard(quiet) {
   await guard(async () => {
-    S.board = await api('board');
-    const k = JSON.stringify(S.board.updatedAt) + S.board.locked;
+    S.board = await api('board', { scope: S.scope });
+    const k = JSON.stringify(S.board.updatedAt) + S.board.locked + S.board.scope;
     if (k !== S.bkey) { S.bkey = k; S.detail = {}; }
     if (S.tab === 'board') viewBoard(); else if (S.tab === 'race') viewRace();
   });
@@ -375,6 +375,9 @@ function viewBoard() {
   if (!S.board) { $('#main').innerHTML = '<p class="mute" style="text-align:center;padding:40px">Chargement…</p>'; refreshBoard(); return; }
   const b = S.board;
   let h = '<div class="row sp" style="margin-top:6px"><h2>Classement des joueurs</h2><button class="btn sm sec" id="rf">↻</button></div>';
+  if (b.leaguesCount > 1 && S.me.league) {
+    h += '<div class="tabsw"><button data-sc="mine" class="' + (b.scope !== 'all' ? 'on' : '') + '">' + esc(S.me.league.name) + '</button><button data-sc="all" class="' + (b.scope === 'all' ? 'on' : '') + '">Général</button></div>';
+  }
   if (!b.locked) h += '<div class="card mute">Les pronos des autres joueurs seront visibles au départ de la course.</div>';
   const anyRank = Object.keys(b.ranking).some(k => b.ranking[k].length);
   if (b.locked && !anyRank) h += '<div class="card mute">En attente du premier classement officiel…</div>';
@@ -403,6 +406,7 @@ function viewBoard() {
   });
   $('#main').innerHTML = h;
   $('#rf').onclick = () => refreshBoard();
+  document.querySelectorAll('[data-sc]').forEach(t => t.onclick = () => { S.scope = t.dataset.sc === 'all' ? 'all' : undefined; S.open = null; S.board = null; viewBoard(); });
   document.querySelectorAll('.lb').forEach(l => l.onclick = () => { S.open = S.open === l.dataset.p ? null : l.dataset.p; viewBoard(); });
 }
 
@@ -453,12 +457,20 @@ async function viewAdmin() {
   const a = S.adm, st = a.settings, rk = (S.board && S.board.ranking) || {};
   let h = '<h2 style="margin-top:6px">Administration</h2>';
   h += '<div class="card"><h3>Réglages</h3>' +
-    '<div class="field"><label>Code de la ligue</label><input id="s_code" value="' + esc(st.leagueCode) + '"></div>' +
     '<div class="field"><label>Verrouillage des pronos (heure de Paris)</label><input id="s_lock" type="datetime-local" value="' + toLocalInput(st.lockISO) + '"></div>' +
     '<div class="field"><label>URL de la source du classement live (optionnel)</label><input id="s_src" value="' + esc(st.sourceUrl) + '" placeholder="https://…"></div>' +
     '<div class="row sp field"><span>Mode manuel uniquement</span><input id="s_man" type="checkbox" style="width:auto" ' + (st.manualOnly ? 'checked' : '') + '></div>' +
     '<button class="btn" id="s_save">Enregistrer les réglages</button>' +
     '<button class="btn sec" id="s_ref" style="margin-top:8px">Rafraîchir le classement depuis la source</button></div>';
+
+  h += '<div class="card"><h3>Ligues</h3><p class="mute">Un joueur est dans une seule ligue. Il la rejoint avec son code à l\'inscription.</p>';
+  a.leagues.forEach(l => {
+    h += '<div class="u"><div><b>' + esc(l.name) + '</b><div class="mute">Code : <b>' + esc(l.code) + '</b> · ' + l.count + ' joueur' + (l.count > 1 ? 's' : '') + '</div></div>' +
+      '<div class="row"><button class="btn sm sec" data-le="' + esc(l.id) + '">Modifier</button><button class="btn sm danger" data-ld="' + esc(l.id) + '">✖</button></div></div>';
+  });
+  h += '<div class="field"><label>Nouvelle ligue</label><input id="n_name" placeholder="Nom (ex. Famille)" maxlength="30"></div>' +
+    '<div class="field"><input id="n_code" placeholder="Code à donner (ex. FAMILLE26)" autocapitalize="characters" maxlength="20"></div>' +
+    '<button class="btn" id="n_add">Créer la ligue</button></div>';
 
   h += '<div class="card"><h3>Classement officiel (saisie manuelle)</h3><p class="mute">Sert de secours ou pour corriger. Le déclencheur automatique écrase ces valeurs si le mode manuel est désactivé.</p>';
   S.cfg.classes.forEach(c => {
@@ -473,7 +485,7 @@ async function viewAdmin() {
 
   h += '<div class="card"><h3>Joueurs (' + a.users.length + ')</h3>';
   a.users.forEach(u => {
-    h += '<div class="u"><div><b>' + esc(u.pseudo) + '</b> ' + (u.role === 'admin' ? '<span class="pill">admin</span>' : '') + '<div class="mute">inscrit le ' + esc(fmtTime(u.createdAt)) + '</div></div>' +
+    h += '<div class="u"><div><b>' + esc(u.pseudo) + '</b> ' + (u.role === 'admin' ? '<span class="pill">admin</span>' : '') + '<select data-mv="' + esc(u.pseudo) + '" style="margin-top:6px;padding:6px">' + a.leagues.map(l => '<option value="' + esc(l.id) + '"' + (l.id === u.league ? ' selected' : '') + '>' + esc(l.name) + '</option>').join('') + '</select></div>' +
       (u.role === 'admin' ? '' : '<div class="row"><button class="btn sm sec" data-pin="' + esc(u.pseudo) + '">Reset PIN</button><button class="btn sm danger" data-del="' + esc(u.pseudo) + '">✖</button></div>') + '</div>';
   });
   h += '</div>';
@@ -482,7 +494,7 @@ async function viewAdmin() {
   $('#s_save').onclick = () => guard(async () => {
     const lock = $('#s_lock').value;
     await api('adminSettings', { settings: {
-      leagueCode: $('#s_code').value, lockISO: new Date(lock).toISOString(), sourceUrl: $('#s_src').value, manualOnly: $('#s_man').checked
+      lockISO: new Date(lock).toISOString(), sourceUrl: $('#s_src').value, manualOnly: $('#s_man').checked
     } });
     S.cfg = await api('config'); S.adm = null; toast('Réglages enregistrés ✔'); viewAdmin();
   });
@@ -500,6 +512,25 @@ async function viewAdmin() {
     S.board = await api('board'); S.cfg = await api('config');
     toast(r.changed ? 'Classement publié ✔' : 'Aucun changement');
   });
+  $('#n_add').onclick = () => guard(async () => {
+    await api('adminLeagueSave', { name: $('#n_name').value, code: $('#n_code').value });
+    S.adm = null; S.board = null; toast('Ligue créée ✔'); viewAdmin();
+  });
+  document.querySelectorAll('[data-le]').forEach(b => b.onclick = () => guard(async () => {
+    const l = a.leagues.find(x => x.id === b.dataset.le);
+    const name = prompt('Nom de la ligue :', l.name); if (name === null) return;
+    const code = prompt('Code d\'inscription :', l.code); if (code === null) return;
+    await api('adminLeagueSave', { id: l.id, name: name, code: code });
+    S.adm = null; S.board = null; S.me = (await api('me')).me; toast('Ligue modifiée ✔'); viewAdmin();
+  }));
+  document.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => guard(async () => {
+    if (!confirm('Supprimer cette ligue ?')) return;
+    await api('adminLeagueDelete', { id: b.dataset.ld }); S.adm = null; toast('Ligue supprimée'); viewAdmin();
+  }));
+  document.querySelectorAll('[data-mv]').forEach(sel => sel.onchange = () => guard(async () => {
+    await api('adminMoveUser', { pseudo: sel.dataset.mv, league: sel.value });
+    S.adm = null; S.board = null; toast('Joueur déplacé ✔'); viewAdmin();
+  }));
   document.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => guard(async () => {
     const pin = prompt('Nouveau PIN pour ' + b.dataset.pin + ' (4 à 8 caractères) :');
     if (!pin) return;

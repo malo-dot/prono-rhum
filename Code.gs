@@ -11,7 +11,7 @@
 // ====== À MODIFIER AVANT setup() ======
 const ADMIN_PSEUDO = 'Malo';
 const ADMIN_PIN = 'CHANGE_MOI';          // 4 à 8 chiffres/lettres, modifiable ensuite dans l'app
-const DEFAULT_LEAGUE_CODE = 'RHUM2026';  // code à donner aux joueurs
+const DEFAULT_LEAGUE_CODE = 'RHUM2026';  // code de la première ligue (les autres se créent dans l'onglet Admin)
 const DEFAULT_LOCK_ISO = '2026-11-01T13:02:00+01:00'; // départ : dimanche 1er nov. 13h02
 
 // ====== BARÈME (modifiable) ======
@@ -83,11 +83,12 @@ const SKIPPERS_SEED = {
 // ====== OUTILS FEUILLES ======
 const SHEETS = {
   Config:   ['key', 'value'],
-  Users:    ['pseudo', 'salt', 'hash', 'role', 'createdAt', 'active'],
+  Users:    ['pseudo', 'salt', 'hash', 'role', 'createdAt', 'active', 'league'],
+  Leagues:  ['id', 'name', 'code', 'createdAt'],
   Skippers: ['class', 'name', 'boat'],
   Picks:    ['pseudo', 'json', 'updatedAt'],   // 1 ligne par joueur
   Ranking:  ['class', 'rank', 'skipper', 'updatedAt'],
-  Prev:     ['pseudo', 'rank']
+  Prev:     ['scope', 'pseudo', 'rank']
 };
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
@@ -150,14 +151,28 @@ function setConfig_(key, value) {
     if (v[i][0] === key) { sh.getRange(i + 1, 2).setValue(value); done = true; break; }
   }
   if (!done) sh.appendRow([key, value]);
-  cacheDel_('cfg', 'cfgpub', 'board');
+  cacheDel_('cfg', 'cfgpub');
+  delBoards_();
+}
+
+/** Efface les classements en cache (un par ligue + le général). */
+function delBoards_() {
+  cacheDel_.apply(null, ['board_all'].concat(Object.keys(leaguesMap_()).map(id => 'board_' + id)));
+}
+
+function leaguesMap_() {
+  return cached_('leagues', 300, () => {
+    const m = {};
+    rows_('Leagues').forEach(l => (m[String(l.id)] = { id: String(l.id), name: String(l.name), code: String(l.code) }));
+    return m;
+  });
 }
 
 function usersMap_() {
   return cached_('users', 300, () => {
     const m = {};
     rows_('Users').forEach(u => {
-      m[String(u.pseudo).toLowerCase()] = { pseudo: String(u.pseudo), salt: String(u.salt), hash: String(u.hash), role: u.role, createdAt: u.createdAt, active: String(u.active) };
+      m[String(u.pseudo).toLowerCase()] = { pseudo: String(u.pseudo), salt: String(u.salt), hash: String(u.hash), role: u.role, createdAt: u.createdAt, active: String(u.active), league: String(u.league || '') };
     });
     return m;
   });
@@ -170,21 +185,31 @@ function setup() {
     if (!sh) sh = ss_().insertSheet(name);
     const head = SHEETS[name];
     const cur = sh.getLastRow() > 0 ? sh.getRange(1, 1, 1, head.length).getValues()[0] : [];
-    if (cur.join('|') !== head.join('|')) {   // première install ou ancien format : on repart propre
+    const same = cur.join('|') === head.join('|');
+    // Migration douce : « Users » gagne la colonne « league » sans perdre les comptes existants
+    const addedCol = name === 'Users' && !same && cur.slice(0, head.length - 1).join('|') === head.slice(0, -1).join('|') && !cur[head.length - 1];
+    if (addedCol) {
+      sh.getRange(1, head.length).setValue(head[head.length - 1]);
+    } else if (!same) {   // première install ou ancien format : on repart propre
       sh.clearContents();
       sh.getRange(1, 1, 1, head.length).setValues([head]);
       sh.setFrozenRows(1);
     }
-    // Texte brut pour éviter que Sheets convertisse dates / hash / « true » tout seul
-    if (name === 'Config' || name === 'Users') sh.getRange(1, 1, sh.getMaxRows(), head.length).setNumberFormat('@');
+    // Texte brut pour éviter que Sheets convertisse dates / hash / codes / « true » tout seul
+    if (name === 'Config' || name === 'Users' || name === 'Leagues') sh.getRange(1, 1, sh.getMaxRows(), head.length).setNumberFormat('@');
   });
-  cacheDel_('cfg', 'cfgpub', 'users', 'skp', 'picks', 'rank', 'board');
+  cacheDel_('cfg', 'cfgpub', 'users', 'skp', 'picks', 'rank', 'leagues');
   secret_();
   const cfg = getConfig_();
-  if (!cfg.leagueCode) setConfig_('leagueCode', DEFAULT_LEAGUE_CODE);
   if (!cfg.lockISO) setConfig_('lockISO', DEFAULT_LOCK_ISO);
   if (cfg.manualOnly === undefined) setConfig_('manualOnly', 'true');
   if (cfg.sourceUrl === undefined) setConfig_('sourceUrl', '');
+
+  if (rows_('Leagues').length === 0) {   // ligue par défaut (reprend l'ancien code de ligue s'il existait)
+    appendRow_('Leagues', { id: 'L1', name: 'Ligue principale', code: cfg.leagueCode || DEFAULT_LEAGUE_CODE, createdAt: new Date().toISOString() });
+  }
+  cacheDel_('leagues');
+  const firstLeague = Object.keys(leaguesMap_())[0];
 
   if (rows_('Skippers').length === 0) {
     const out = [];
@@ -194,10 +219,16 @@ function setup() {
   if (!rows_('Users').some(u => u.role === 'admin')) {
     if (ADMIN_PIN === 'CHANGE_MOI') throw new Error('Change ADMIN_PIN en haut du script avant setup().');
     const salt = Utilities.getUuid();
-    appendRow_('Users', { pseudo: ADMIN_PSEUDO, salt: salt, hash: hash_(ADMIN_PIN, salt), role: 'admin', createdAt: new Date().toISOString(), active: 'true' });
+    appendRow_('Users', { pseudo: ADMIN_PSEUDO, salt: salt, hash: hash_(ADMIN_PIN, salt), role: 'admin', createdAt: new Date().toISOString(), active: 'true', league: firstLeague });
   }
-  cacheDel_('users', 'cfg', 'cfgpub', 'skp');
-  return 'OK : feuilles créées, admin = ' + ADMIN_PSEUDO;
+  const users = rows_('Users');
+  if (users.some(u => !u.league)) {   // joueurs existants sans ligue => ligue par défaut
+    users.forEach(u => { if (!u.league) u.league = firstLeague; });
+    replaceRows_('Users', users);
+  }
+  cacheDel_('users', 'cfg', 'cfgpub', 'skp', 'leagues');
+  delBoards_();
+  return 'OK : feuilles prêtes, admin = ' + ADMIN_PSEUDO;
 }
 
 /** Planifie la mise à jour auto du classement (toutes les 15 min). À lancer une fois quand le flux live est branché. */
@@ -238,6 +269,11 @@ function userByToken_(token) {
   return u;
 }
 
+function meOf_(u) {
+  const lg = leaguesMap_()[u.league];
+  return { pseudo: u.pseudo, role: u.role, league: lg ? { id: lg.id, name: lg.name } : null };
+}
+
 function requireUser_(b) {
   const u = userByToken_(b.token);
   if (!u) throw new Error('Session expirée, reconnecte-toi.');
@@ -261,12 +297,16 @@ function register_(b) {
   const pin = String(b.pin || '');
   if (pseudo.length < 2 || pseudo.length > 20) throw new Error('Pseudo : 2 à 20 caractères.');
   if (!/^[A-Za-z0-9]{4,8}$/.test(pin)) throw new Error('Code PIN : 4 à 8 caractères (lettres/chiffres).');
-  if (String(b.code || '').trim().toUpperCase() !== getConfig_().leagueCode.toUpperCase()) throw new Error('Code de ligue incorrect.');
+  const code = String(b.code || '').trim().toUpperCase();
+  const lm = leaguesMap_();
+  const lg = Object.keys(lm).map(k => lm[k]).find(l => l.code.toUpperCase() === code);
+  if (!code || !lg) throw new Error('Code de ligue incorrect.');
   if (rows_('Users').some(u => String(u.pseudo).toLowerCase() === pseudo.toLowerCase())) throw new Error('Ce pseudo est déjà pris.');
   const salt = Utilities.getUuid();
-  appendRow_('Users', { pseudo: pseudo, salt: salt, hash: hash_(pin, salt), role: 'player', createdAt: new Date().toISOString(), active: 'true' });
-  cacheDel_('users', 'board');
-  return { token: makeToken_({ pseudo: pseudo, salt: salt }), me: { pseudo: pseudo, role: 'player' } };
+  appendRow_('Users', { pseudo: pseudo, salt: salt, hash: hash_(pin, salt), role: 'player', createdAt: new Date().toISOString(), active: 'true', league: lg.id });
+  cacheDel_('users');
+  delBoards_();
+  return { token: makeToken_({ pseudo: pseudo, salt: salt }), me: { pseudo: pseudo, role: 'player', league: { id: lg.id, name: lg.name } } };
 }
 
 function login_(b) {
@@ -281,7 +321,7 @@ function login_(b) {
     throw new Error('Pseudo ou PIN incorrect.');
   }
   cache.remove(fk);
-  return { token: makeToken_(u), me: { pseudo: u.pseudo, role: u.role } };
+  return { token: makeToken_(u), me: meOf_(u) };
 }
 
 // ====== DONNÉES ======
@@ -350,8 +390,9 @@ function scoreClass_(picks, actual, n) {
   return res;
 }
 
-function leaderboard_() {
-  const users = Object.keys(usersMap_()).map(k => usersMap_()[k]).filter(u => u.active === 'true');
+function leaderboard_(scope) {
+  const um = usersMap_();
+  const users = Object.keys(um).map(k => um[k]).filter(u => u.active === 'true' && (!scope || scope === 'all' || u.league === scope));
   const picks = picksByUser_();
   const rk = rankingByClass_().ranking;
   const list = users.map(u => {
@@ -374,7 +415,9 @@ function leaderboard_() {
 }
 
 function snapshotPrev_() {
-  replaceRows_('Prev', leaderboard_().map(x => ({ pseudo: x.pseudo, rank: x.rank })));
+  const out = [];
+  ['all'].concat(Object.keys(leaguesMap_())).forEach(sc => leaderboard_(sc).forEach(x => out.push({ scope: sc, pseudo: x.pseudo, rank: x.rank })));
+  replaceRows_('Prev', out);
 }
 
 // ====== ACTIONS JOUEUR ======
@@ -407,17 +450,19 @@ function savePicks_(b) {
 
 function me_(b) {
   const u = requireUser_(b);
-  return { me: { pseudo: u.pseudo, role: u.role }, picks: picksByUser_()[u.pseudo] || {} };
+  return { me: meOf_(u), picks: picksByUser_()[u.pseudo] || {} };
 }
 
 function board_(b) {
-  requireUser_(b);
-  const s = cached_('board', 20, () => {
+  const u = requireUser_(b);
+  const scope = b.scope === 'all' || !u.league ? 'all' : u.league;   // un joueur voit sa ligue, ou le général
+  const lm = leaguesMap_();
+  const s = cached_('board_' + scope, 20, () => {
     const prev = {};
-    rows_('Prev').forEach(p => (prev[p.pseudo] = Number(p.rank)));
+    rows_('Prev').forEach(p => { if (String(p.scope) === scope) prev[p.pseudo] = Number(p.rank); });
     const rk = rankingByClass_();
     return {
-      board: leaderboard_().map(x => {
+      board: leaderboard_(scope).map(x => {
         const pbc = {};
         CLASSES.forEach(c => (pbc[c.id] = x.byClass[c.id].pts));
         return { pseudo: x.pseudo, rank: x.rank, total: x.total, prevRank: prev[x.pseudo] || null, pointsByClass: pbc };
@@ -425,7 +470,7 @@ function board_(b) {
       ranking: rk.ranking, updatedAt: rk.updatedAt, finals: finals_()
     };
   });
-  return Object.assign({ locked: isLocked_() }, s);
+  return Object.assign({ locked: isLocked_(), scope: scope, leagueName: lm[u.league] ? lm[u.league].name : '', leaguesCount: Object.keys(lm).length }, s);
 }
 
 /** Détail des points d'un joueur : visible seulement après le verrouillage. */
@@ -443,14 +488,65 @@ function detail_(b) {
 function adminGet_(b) {
   requireAdmin_(b);
   const cfg = getConfig_();
-  const users = rows_('Users').map(u => ({ pseudo: u.pseudo, role: u.role, createdAt: u.createdAt, active: String(u.active) === 'true' }));
-  return { settings: { leagueCode: cfg.leagueCode, lockISO: cfg.lockISO, manualOnly: cfg.manualOnly === 'true', sourceUrl: cfg.sourceUrl || '' }, users: users, finals: finals_() };
+  const users = rows_('Users').map(u => ({ pseudo: u.pseudo, role: u.role, createdAt: u.createdAt, active: String(u.active) === 'true', league: String(u.league || '') }));
+  const counts = {};
+  users.forEach(u => (counts[u.league] = (counts[u.league] || 0) + 1));
+  const leagues = rows_('Leagues').map(l => ({ id: String(l.id), name: String(l.name), code: String(l.code), count: counts[String(l.id)] || 0 }));
+  return { settings: { lockISO: cfg.lockISO, manualOnly: cfg.manualOnly === 'true', sourceUrl: cfg.sourceUrl || '' }, users: users, leagues: leagues, finals: finals_() };
+}
+
+function adminLeagueSave_(b) {
+  requireAdmin_(b);
+  const name = String(b.name || '').trim(), code = String(b.code || '').trim();
+  if (name.length < 2 || name.length > 30) throw new Error('Nom de ligue : 2 à 30 caractères.');
+  if (!/^[A-Za-z0-9]{3,20}$/.test(code)) throw new Error('Code : 3 à 20 lettres/chiffres, sans espace.');
+  const ls = rows_('Leagues');
+  const other = l => String(l.id) !== String(b.id || '');
+  if (ls.some(l => other(l) && String(l.code).toUpperCase() === code.toUpperCase())) throw new Error('Ce code est déjà utilisé par une autre ligue.');
+  if (ls.some(l => other(l) && String(l.name).toLowerCase() === name.toLowerCase())) throw new Error('Ce nom est déjà pris.');
+  if (b.id) {
+    const l = ls.find(x => String(x.id) === String(b.id));
+    if (!l) throw new Error('Ligue introuvable.');
+    l.name = name; l.code = code;
+  } else {
+    let n = 1;
+    ls.forEach(l => { n = Math.max(n, Number(String(l.id).slice(1)) + 1); });
+    ls.push({ id: 'L' + n, name: name, code: code, createdAt: new Date().toISOString() });
+  }
+  replaceRows_('Leagues', ls);
+  cacheDel_('leagues');
+  delBoards_();
+  return { ok: true };
+}
+
+function adminLeagueDelete_(b) {
+  requireAdmin_(b);
+  const ls = rows_('Leagues');
+  if (!ls.some(l => String(l.id) === String(b.id))) throw new Error('Ligue introuvable.');
+  if (ls.length <= 1) throw new Error('Il faut garder au moins une ligue.');
+  if (rows_('Users').some(u => String(u.league) === String(b.id))) throw new Error('Cette ligue contient encore des joueurs : déplace-les d\'abord.');
+  replaceRows_('Leagues', ls.filter(l => String(l.id) !== String(b.id)));
+  cacheDel_('leagues');
+  delBoards_();
+  return { ok: true };
+}
+
+function adminMoveUser_(b) {
+  requireAdmin_(b);
+  if (!leaguesMap_()[String(b.league)]) throw new Error('Ligue introuvable.');
+  const users = rows_('Users');
+  const u = users.find(x => x.pseudo === b.pseudo);
+  if (!u) throw new Error('Joueur introuvable.');
+  u.league = String(b.league);
+  replaceRows_('Users', users);
+  cacheDel_('users');
+  delBoards_();
+  return { ok: true };
 }
 
 function adminSettings_(b) {
   requireAdmin_(b);
   const s = b.settings || {};
-  if (s.leagueCode !== undefined) setConfig_('leagueCode', String(s.leagueCode).trim());
   if (s.lockISO !== undefined) {
     if (isNaN(new Date(s.lockISO).getTime())) throw new Error('Date de verrouillage invalide.');
     setConfig_('lockISO', s.lockISO);
@@ -476,7 +572,8 @@ function applyRanking_(map, finals) {
       list.forEach((s, i) => out.push({ class: c.id, rank: i + 1, skipper: s, updatedAt: now }));
     });
     replaceRows_('Ranking', out);
-    cacheDel_('rank', 'board');
+    cacheDel_('rank');
+    delBoards_();
   }
   if (finals) CLASSES.forEach(c => { if (finals[c.id] !== undefined) setConfig_('final_' + c.id, finals[c.id] ? 'true' : 'false'); });
   return changed;
@@ -515,7 +612,8 @@ function adminDeleteUser_(b) {
   if (b.pseudo === me.pseudo) throw new Error('Tu ne peux pas te supprimer toi-même.');
   replaceRows_('Users', rows_('Users').filter(u => u.pseudo !== b.pseudo));
   replaceRows_('Picks', rows_('Picks').filter(p => p.pseudo !== b.pseudo));
-  cacheDel_('users', 'picks', 'board');
+  cacheDel_('users', 'picks');
+  delBoards_();
   return { ok: true };
 }
 
@@ -597,13 +695,16 @@ function handle_(b) {
     case 'adminSetRanking':return adminSetRanking_(b);
     case 'adminResetPin':  return adminResetPin_(b);
     case 'adminDeleteUser':return adminDeleteUser_(b);
+    case 'adminLeagueSave':return adminLeagueSave_(b);
+    case 'adminLeagueDelete':return adminLeagueDelete_(b);
+    case 'adminMoveUser':  return adminMoveUser_(b);
     case 'adminRefresh':   return adminRefresh_(b);
     default: throw new Error('Action inconnue.');
   }
 }
 
 // Seules les actions qui ÉCRIVENT passent par le verrou. Les lectures et les connexions ne font jamais la queue.
-const WRITE_ACTIONS = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh'];
+const WRITE_ACTIONS = ['register', 'savePicks', 'adminSettings', 'adminSetRanking', 'adminResetPin', 'adminDeleteUser', 'adminRefresh', 'adminLeagueSave', 'adminLeagueDelete', 'adminMoveUser'];
 
 function doPost(e) {
   let out, locked = false;
