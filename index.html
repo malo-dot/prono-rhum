@@ -276,8 +276,8 @@ function render() {
   $('#out').onclick = () => logout();
   $('#chpw').onclick = e => {
     e.preventDefault();
-    const old = prompt('Mot de passe actuel :'); if (!old) return;
-    const nw = prompt('Nouveau mot de passe (6 caractères minimum) :'); if (!nw) return;
+    const old = (prompt('Mot de passe actuel :') || '').trim(); if (!old) return;
+    const nw = (prompt('Nouveau mot de passe (6 caractères minimum, sans espace) :') || '').trim(); if (!nw) return;
     guard(async () => { const r = await api('changePassword', { pin: old, newPin: nw }); S.token = r.token; lsSet('prono_token', r.token); toast('Mot de passe changé ✔'); });
   };
   document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
@@ -297,7 +297,7 @@ function authView() {
     '<div class="tabsw"><button data-m="login" class="' + (!reg ? 'on' : '') + '">Connexion</button><button data-m="register" class="' + (reg ? 'on' : '') + '">Créer un compte</button></div>' +
     '<div class="card">' +
     '<div class="field"><label>Pseudo</label><input id="a_pseudo" autocomplete="username" maxlength="20"></div>' +
-    '<div class="field"><label>Mot de passe' + (reg ? ' (6 caractères minimum)' : '') + '</label><input id="a_pin" type="password" autocomplete="' + (reg ? 'new-password' : 'current-password') + '" maxlength="64"></div>' +
+    '<div class="field"><label>Mot de passe' + (reg ? ' (6 caractères minimum, sans espace)' : '') + '</label><input id="a_pin" type="password" autocomplete="' + (reg ? 'new-password' : 'current-password') + '" maxlength="64"></div>' +
     (reg ? '<div class="field"><label>Numéro de téléphone</label><input id="a_phone" type="tel" autocomplete="tel" maxlength="20" placeholder="06 12 34 56 78"><div class="mute" style="margin-top:4px">Visible uniquement par l\'admin, pour te dépanner si tu perds ton mot de passe.</div></div>' : '') +
     (reg ? '<div class="field"><label>Code de ta ligue (donné par l\'admin)</label><input id="a_code" autocapitalize="characters"></div>' : '') +
     '<button class="btn" id="a_go">' + (reg ? 'Rejoindre la ligue' : 'Se connecter') + '</button>' +
@@ -309,7 +309,7 @@ function bindAuth() {
   const go = () => guard(async () => {
     const btn = $('#a_go'); btn.disabled = true;
     try {
-      const body = { pseudo: $('#a_pseudo').value, pin: $('#a_pin').value };
+      const body = { pseudo: $('#a_pseudo').value, pin: $('#a_pin').value.trim() };   // trim : évite l'espace ajouté par l'autocorrection du clavier
       if (S.authMode === 'register') { body.code = $('#a_code').value; body.phone = $('#a_phone').value; }
       const r = await api(S.authMode, body);
       S.token = r.token; S.me = r.me; lsSet('prono_token', r.token); if (S.me.role === 'admin') S.tab = 'admin';
@@ -667,9 +667,9 @@ async function viewAdmin() {
     S.adm = null; S.board = null; toast('Joueur déplacé ✔'); viewAdmin();
   }));
   document.querySelectorAll('[data-rq]').forEach(b => b.onclick = () => guard(async () => {
-    const pin = prompt('Nouveau mot de passe pour ' + b.dataset.rq + ' (6 caractères minimum). Envoie-le lui ensuite :');
+    const pin = prompt('Nouveau mot de passe pour ' + b.dataset.rq + ' (6 caractères minimum, sans espace). Envoie-le lui ensuite :');
     if (!pin) return;
-    await api('adminResetPin', { pseudo: b.dataset.rq, pin: pin }); S.adm = null; toast('Mot de passe défini ✔'); viewAdmin();
+    await api('adminResetPin', { pseudo: b.dataset.rq, pin: pin.trim() }); S.adm = null; toast('Mot de passe défini ✔'); viewAdmin();
   }));
   document.querySelectorAll('[data-rd]').forEach(b => b.onclick = () => guard(async () => {
     await api('adminDismissRequest', { pseudo: b.dataset.rd }); S.adm = null; viewAdmin();

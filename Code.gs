@@ -304,7 +304,8 @@ function register_(b) {
   const pseudo = cleanPseudo_(b.pseudo);
   const pin = String(b.pin || '');
   if (pseudo.length < 2 || pseudo.length > 20) throw new Error('Pseudo : 2 à 20 caractères.');
-  if (pin.length < 6 || pin.length > 64 || !pin.trim()) throw new Error('Mot de passe : 6 caractères minimum.');
+  if (pin.length < 6 || pin.length > 64) throw new Error('Mot de passe : 6 caractères minimum.');
+  if (/\s/.test(pin)) throw new Error('Le mot de passe ne doit pas contenir d\'espace.');
   const code = String(b.code || '').trim().toUpperCase();
   const lm = leaguesMap_();
   const lg = Object.keys(lm).map(k => lm[k]).find(l => l.code.toUpperCase() === code);
@@ -665,7 +666,8 @@ function adminSetRanking_(b) {
 function adminResetPin_(b) {
   requireAdmin_(b);
   const pin = String(b.pin || '');
-  if (pin.length < 6 || pin.length > 64 || !pin.trim()) throw new Error('Mot de passe : 6 caractères minimum.');
+  if (pin.length < 6 || pin.length > 64) throw new Error('Mot de passe : 6 caractères minimum.');
+  if (/\s/.test(pin)) throw new Error('Le mot de passe ne doit pas contenir d\'espace.');
   const users = rows_('Users');
   const u = users.find(x => x.pseudo === b.pseudo);
   if (!u) throw new Error('Joueur introuvable.');
@@ -703,7 +705,8 @@ function changePassword_(b) {
   const u = requireUser_(b);
   const pin = String(b.newPin || '');
   if (hash_(String(b.pin || ''), u.salt) !== u.hash) throw new Error('Mot de passe actuel incorrect.');
-  if (pin.length < 6 || pin.length > 64 || !pin.trim()) throw new Error('Mot de passe : 6 caractères minimum.');
+  if (pin.length < 6 || pin.length > 64) throw new Error('Mot de passe : 6 caractères minimum.');
+  if (/\s/.test(pin)) throw new Error('Le mot de passe ne doit pas contenir d\'espace.');
   const users = rows_('Users');
   const row = users.find(x => x.pseudo === u.pseudo);
   row.salt = Utilities.getUuid(); row.hash = hash_(pin, row.salt);

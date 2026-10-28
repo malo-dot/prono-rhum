@@ -162,7 +162,8 @@ ok('admin voit une ligue précise ou le général', () => {
   assert.ok(call('board', { token: adm.token }).board.length >= 2);
 });
 throws('mot de passe trop court refusé', () => call('register', { phone: '06 12 34 56 78', pseudo: 'Court', pin: '1234', code: 'RHUM2026' }), /6 caractères/);
-ok('mot de passe avec espaces et symboles accepté', () => { const r = call('register', { phone: '06 12 34 56 78', pseudo: 'Sym', pin: 'Mon mot de passe !é', code: 'RHUM2026' }); assert.equal(call('login', { pseudo: 'Sym', pin: 'Mon mot de passe !é' }).me.pseudo, 'Sym'); });
+throws('mot de passe avec espace refusé', () => call('register', { phone: '06 12 34 56 78', pseudo: 'Esp', pin: 'mon mdp12', code: 'RHUM2026' }), /espace/);
+ok('mot de passe avec symboles et accents accepté', () => { call('register', { phone: '06 12 34 56 78', pseudo: 'Sym', pin: 'Mdp!é#2026', code: 'RHUM2026' }); assert.equal(call('login', { pseudo: 'Sym', pin: 'Mdp!é#2026' }).me.pseudo, 'Sym'); });
 
 // ---- téléphone, mot de passe oublié, changement de mot de passe ----
 throws('inscription sans téléphone refusée', () => call('register', { pseudo: 'Sans', pin: '123456', code: 'RHUM2026' }), /téléphone/);
