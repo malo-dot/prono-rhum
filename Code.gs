@@ -19,7 +19,8 @@ const SCORING = {
   exact: 5,    // bon skipper à la bonne place
   inTop: 2,    // bon skipper dans le top N mais pas à la bonne place
   winner: 3,   // bonus si tu trouves le vainqueur de la classe
-  perfect: 10  // bonus si tout le top N est parfait
+  perfect3: 5, // bonus si le top 3 est parfait
+  perfect: 10  // bonus si tout le top N est parfait (en plus du bonus top 3)
 };
 
 const CLASSES = [
@@ -384,19 +385,20 @@ function scoreClass_(picks, actual, n) {
     for (let i = 0; i < n; i++) res.detail.push({ skipper: picks ? picks[i] || '' : '', status: 'wait', pts: 0 });
     return res;
   }
-  let perfect = true;
+  let perfect = true, perfect3 = true;
   for (let p = 1; p <= n; p++) {
     const s = picks[p - 1] || '';
     const r = actual.indexOf(s) + 1;
     let pts = 0, status = 'miss';
     if (s && r === p) { pts = SCORING.exact; status = 'exact'; if (p === 1) pts += SCORING.winner; }
     else {
-      perfect = false;
+      perfect = false; if (p <= 3) perfect3 = false;
       if (s && r > 0 && r <= n) { pts = SCORING.inTop; status = 'top'; }
     }
     res.pts += pts;
     res.detail.push({ skipper: s, status: status, pts: pts, actualRank: r || null });
   }
+  if (n >= 3 && perfect3 && actual.length >= 3 && picks.filter(Boolean).length >= 3) res.pts += SCORING.perfect3;
   if (perfect && actual.length >= n && picks.filter(Boolean).length === n) res.pts += SCORING.perfect;
   return res;
 }
