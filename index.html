@@ -298,7 +298,18 @@ function logout(silent) {
   render();
 }
 
+const BUILD = '2026-10-28-a';
+/* Auto-mise à jour : si une version plus récente du site est en ligne, on recharge une fois (évite l'ancienne version en cache du téléphone) */
+async function checkUpdate() {
+  try {
+    if (sessionStorage.getItem('prono_reloaded') === BUILD) return;
+    const t = await (await fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' })).text();
+    const m = t.match(/const BUILD = '([^']+)'/);
+    if (m && m[1] !== BUILD) { sessionStorage.setItem('prono_reloaded', m[1]); location.replace(location.pathname + '?v=' + encodeURIComponent(m[1])); }
+  } catch (e) {}
+}
 async function boot() {
+  checkUpdate();
   S.token = lsGet('prono_token');
   try {
     const pCfg = api('config'), pMe = S.token ? api('me').catch(e => ({ _err: e })) : null;
