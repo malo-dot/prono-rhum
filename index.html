@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1b2745">
 <title>MPP RDR 2026</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Archivo+Black&display=swap">
 <style>
 :root{
   --navy:#28385c;--navy-d:#1b2745;--teal:#82bebf;--yellow:#f9ed37;--white:#fff;
@@ -129,6 +129,69 @@ details.rules summary{cursor:pointer;font-weight:900;text-transform:uppercase;le
 details.rules p{margin:10px 0 4px}
 details.rules ul{margin:4px 0;padding-left:20px}
 details.rules li{margin:3px 0}
+
+/* ===== habillage v4 : coques, rails, fond graphique ===== */
+:root{--display:'Archivo Black','Outfit',system-ui,sans-serif}
+html{background:var(--navy-d)}
+body{background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900' preserveAspectRatio='xMidYMid slice'><rect width='1600' height='900' fill='%2328385c'/><circle cx='1530' cy='40' r='210' fill='%23f9ed37' opacity='.95'/><path d='M-40 900 L260 380 L560 900Z' fill='%2382bebf' opacity='.6'/><path d='M120 900 L330 560 L540 900Z' fill='%231b2745' opacity='.4'/><path d='M0 760 Q200 700 400 760 T800 760 T1200 760 T1600 760 V900 H0Z' fill='%231b2745' opacity='.55'/><path d='M0 820 Q200 770 400 820 T800 820 T1200 820 T1600 820 V900 H0Z' fill='%2382bebf' opacity='.5'/></svg>") center/cover fixed no-repeat}
+body::after{content:"";position:fixed;inset:0;z-index:-1;background-image:radial-gradient(rgba(255,255,255,.06) 1.2px,transparent 1.2px);background-size:18px 18px}
+h1,h2{font-family:var(--display);font-weight:400;letter-spacing:.2px}
+h2{font-size:24px;line-height:1.05}
+.shell{display:block}
+.rail{display:none}
+@media(min-width:1040px){
+  .shell{display:grid;grid-template-columns:minmax(260px,1fr) 640px minmax(260px,1fr);gap:28px;max-width:1380px;margin:0 auto;padding:0 24px;align-items:start}
+  .rail{display:block;position:sticky;top:96px;padding-top:16px}
+  .rail .tile{background:#fff;color:var(--navy);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;margin-bottom:16px}
+  .rail .tile.y{background:var(--yellow);box-shadow:inset 0 0 0 2px var(--navy-d),var(--shadow)}
+  .rail .tile.t{background:var(--teal)}
+  .rail .tile.n{background:var(--navy-d);color:#fff;box-shadow:4px 4px 0 var(--yellow)}
+  .rail h4{margin:0 0 8px;font-family:var(--display);font-weight:400;font-size:15px;letter-spacing:.3px}
+  nav.tabs .in{max-width:640px}
+  .shell>main.wrap{max-width:640px;width:100%}
+}
+.ci{width:54px;height:34px;flex:0 0 54px}
+.cls-row{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:2px solid rgba(40,56,92,.12)}
+.cls-row:last-child{border-bottom:0}
+.cls-row b{display:block;line-height:1.1}.cls-row small{color:var(--mute)}
+.av{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:12px;letter-spacing:.3px;color:var(--navy);box-shadow:inset 0 0 0 2px var(--navy)}
+.av.a0{background:var(--yellow)}.av.a1{background:var(--teal)}.av.a2{background:#fff}.av.a3{background:#c3cde4}
+.big{font-family:var(--display);font-size:34px;line-height:1;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.route svg{display:block;width:100%;height:auto;border-radius:4px}
+.route .dash{stroke-dasharray:6 7;animation:draw 2.4s ease-out both}
+@keyframes draw{from{stroke-dashoffset:420;opacity:.2}to{stroke-dashoffset:0;opacity:1}}
+@media(prefers-reduced-motion:reduce){.route .dash{animation:none}}
+.podium{display:flex;align-items:flex-end;gap:8px;margin:6px 0 2px}
+.podium .st{flex:1;text-align:center;min-width:0}
+.podium .st .nm{font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+.podium .st .pt{font-size:12px;color:var(--mute)}
+.podium .blk{margin-top:6px;border-radius:4px 4px 0 0;display:grid;place-items:center;font-family:var(--display);font-size:22px;color:var(--navy);box-shadow:inset 0 0 0 2px var(--navy)}
+.podium .st.p1 .blk{height:64px;background:var(--yellow)}
+.podium .st.p2 .blk{height:44px;background:var(--teal)}
+.podium .st.p3 .blk{height:30px;background:#fff}
+.podium .st .av{margin:0 auto}
+.cardhead{display:flex;align-items:center;gap:12px}
+.cardhead h3{flex:1}
+.slot .av{width:30px;height:30px;font-size:11px}
+.opt{display:flex!important;gap:10px;align-items:center}
+.opt .av{width:30px;height:30px;font-size:11px}
+.opt .tx{flex:1;min-width:0}
+.authgrid{max-width:1100px;margin:0 auto;padding:16px}
+@media(min-width:900px){
+  .authgrid{display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center;min-height:100vh;padding:32px}
+  .authgrid .hero h1{font-size:76px}
+  .authgrid .formcol{position:relative}
+  .authgrid .tabsw{background:var(--navy-d)}
+}
+.hero h1{font-size:50px;line-height:.92}
+.classstrip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.classstrip div{background:#fff;color:var(--navy);border-radius:var(--radius);padding:8px 4px;text-align:center;font-weight:800;font-size:12px;box-shadow:3px 3px 0 var(--navy-d)}
+.classstrip .ci{width:100%;height:30px;display:block;margin-bottom:2px}
+@media(max-width:380px){.classstrip{grid-template-columns:repeat(2,1fr)}}
+.mobonly{display:block}
+@media(min-width:1040px){.mobonly{display:none}}
+.lb .av{flex:0 0 auto}
+.who .pill{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -246,12 +309,69 @@ async function boot() {
 }
 
 function tick() {
+  const rc = $('#cdr');
+  if (rc && S.cfg) { const lf = lockMs() - now(); rc.textContent = lf > 0 ? fmtCount(lf) : 'Verrouillé'; }
   const el = $('#count');
   if (el && S.cfg) {
     const left = lockMs() - now();
     el.textContent = left > 0 ? fmtCount(left) : 'Verrouillé';
     if (left <= 0 && S._wasOpen) { S._wasOpen = false; render(); }
   }
+}
+
+
+/* ============ ÉLÉMENTS GRAPHIQUES ============ */
+const BOAT = {
+  ULTIM: '<path d="M8 30h48l-4 5H12z" fill="#28385c"/><path d="M2 33h13l-2 4H4zM49 33h13l-2 4h-9z" fill="#28385c"/><path d="M11 31h42" stroke="#28385c" stroke-width="2"/><path d="M31 3h3l2 27h-7z" fill="#f9ed37" stroke="#28385c" stroke-width="1.6"/><path d="M38 12l15 18H38z" fill="#fff" stroke="#28385c" stroke-width="1.6"/>',
+  OCEAN50: '<path d="M10 30h44l-4 5H14z" fill="#28385c"/><path d="M3 33h12l-2 4H5zM49 33h12l-2 4h-8z" fill="#28385c"/><path d="M12 31h40" stroke="#28385c" stroke-width="2"/><path d="M30 6l-1 24h-12z" fill="#fff" stroke="#28385c" stroke-width="1.6"/><path d="M33 12l14 18H33z" fill="#f9ed37" stroke="#28385c" stroke-width="1.6"/>',
+  IMOCA: '<path d="M6 29h52l-6 6H12z" fill="#28385c"/><path d="M40 33l8 6" stroke="#28385c" stroke-width="2.6" stroke-linecap="round"/><path d="M30 2l-1 27H12z" fill="#fff" stroke="#28385c" stroke-width="1.6"/><path d="M34 9l17 20H34z" fill="#f9ed37" stroke="#28385c" stroke-width="1.6"/>',
+  CLASS40: '<path d="M8 30h46l-5 5H14z" fill="#28385c"/><path d="M30 8l-1 22H15z" fill="#fff" stroke="#28385c" stroke-width="1.6"/><path d="M33 14l13 16H33z" fill="#f9ed37" stroke="#28385c" stroke-width="1.6"/>'
+};
+function boatIcon(id, bg) { return '<svg class="ci" viewBox="0 0 64 40" aria-hidden="true">' + (bg ? '<rect width="64" height="40" rx="4" fill="' + bg + '"/>' : '') + (BOAT[id] || BOAT.CLASS40) + '<path d="M0 37q8-3 16 0t16 0 16 0 16 0" stroke="#82bebf" stroke-width="2.4" fill="none"/></svg>'; }
+function avatar(name) {
+  const w = String(name || '?').trim().split(/\s+/);
+  const ini = ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase();
+  let h = 0; for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return '<span class="av a' + (h % 4) + '">' + esc(ini) + '</span>';
+}
+function routeSvg() {
+  return '<svg viewBox="0 0 300 200" role="img" aria-label="Route de Saint-Malo à Pointe-à-Pitre"><rect width="300" height="200" fill="#1b2745"/>' +
+    '<path d="M0 150q25-8 50 0t50 0 50 0 50 0 50 0 50 0V200H0z" fill="#82bebf" opacity=".35"/>' +
+    '<path d="M0 172q25-8 50 0t50 0 50 0 50 0 50 0 50 0V200H0z" fill="#82bebf" opacity=".55"/>' +
+    '<path d="M-6 0H96q-8 14-26 20t-20 22q-4 14-24 14T-6 46z" fill="#fff" opacity=".92"/>' +
+    '<path d="M216 168q14-14 30-12t30 6 24-6v38H216z" fill="#fff" opacity=".92"/>' +
+    '<path d="M62 50C110 20 200 40 250 150" fill="none" stroke="#f9ed37" stroke-width="3.2" stroke-linecap="round" class="dash" pathLength="420"/>' +
+    '<circle cx="62" cy="50" r="7" fill="#f9ed37" stroke="#fff" stroke-width="2.5"/>' +
+    '<circle cx="250" cy="150" r="7" fill="#82bebf" stroke="#fff" stroke-width="2.5"/>' +
+    '<text x="72" y="76" fill="#fff" font-family="Outfit,sans-serif" font-weight="800" font-size="12">Saint-Malo</text>' +
+    '<text x="150" y="190" fill="#1b2745" font-family="Outfit,sans-serif" font-weight="800" font-size="12">Pointe-à-Pitre</text>' +
+    '<text x="96" y="118" fill="#f9ed37" font-family="Outfit,sans-serif" font-weight="800" font-size="12">≈ 3 500 milles</text></svg>';
+}
+function leftRail() {
+  const cl = (S.cfg && S.cfg.classes) || [];
+  const lbl = { ULTIM: 'Les géants, 32 m', OCEAN50: 'Trimarans de 50 pieds', IMOCA: 'Monocoques à foils', CLASS40: 'Monocoques de 40 pieds' };
+  return '<div class="tile route" style="padding:0;overflow:hidden">' + routeSvg() + '</div>' +
+    '<div class="tile"><h4>Les 4 classes</h4>' + cl.map(c => '<div class="cls-row">' + boatIcon(c.id) + '<div><b>' + esc(c.label) + '</b><small>' + (lbl[c.id] || '') + ' · top ' + c.n + '</small></div></div>').join('') + '</div>';
+}
+function rightRail() {
+  const b = S.board, sc = S.cfg ? S.cfg.scoring : null;
+  let pod = '';
+  const list = b && b.board ? b.board.filter(x => x.total > 0).slice(0, 3) : [];
+  if (list.length) {
+    const ord = [list[1], list[0], list[2]].filter(Boolean);
+    pod = '<div class="tile"><h4>Podium' + (b.leagueName ? ' · ' + esc(b.leagueName) : '') + '</h4><div class="podium">' + ord.map(x =>
+      '<div class="st p' + x.rank + '">' + avatar(x.pseudo) + '<div class="nm">' + esc(x.pseudo) + '</div><div class="pt">' + x.total + ' pts</div><div class="blk">' + x.rank + '</div></div>').join('') + '</div></div>';
+  }
+  return '<div class="tile n"><div style="font-size:13px;opacity:.8">' + (isLocked() ? 'La course est lancée' : 'Départ dans') + '</div><div class="big" id="cdr">…</div></div>' +
+    pod +
+    '<div class="tile y"><h4>À gagner</h4><div style="display:flex;gap:10px;align-items:center"><span style="font-size:34px">🍹</span><b>Un ti\' punch pour le grand gagnant !</b></div></div>' +
+    (sc ? '<div class="tile"><h4>Les points</h4><div class="cls-row"><b class="big" style="font-size:22px;width:44px">+' + sc.exact + '</b><span>bon skipper, bonne place</span></div><div class="cls-row"><b class="big" style="font-size:22px;width:44px">+' + sc.inTop + '</b><span>dans le top, mal placé</span></div><div class="cls-row"><b class="big" style="font-size:22px;width:44px">+' + sc.winner + '</b><span>vainqueur trouvé</span></div><div class="cls-row"><b class="big" style="font-size:22px;width:44px">+' + sc.perfect + '</b><span>top parfait</span></div></div>' : '');
+}
+function drawRails() {
+  const l = $('#raill'), r = $('#railr');
+  if (l && S.cfg) l.innerHTML = leftRail();
+  if (r && S.cfg) r.innerHTML = rightRail();
+  tick();
 }
 
 /* ============ RENDER ============ */
@@ -269,11 +389,13 @@ function render() {
   app.innerHTML =
     '<header class="top"><div class="wrap"><div class="brand"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#f9ed37"/><path d="M15 29 L29 29 L22 15Z" fill="#82bebf"/><rect x="1" y="17" width="12" height="12" fill="#fff"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()">MPP <span>RDR 2026</span></div>' +
     '<div class="who">' + esc(S.me.pseudo) + (isAdm ? ' <span class="pill">admin</span>' : (S.me.league ? ' <span class="pill">' + esc(S.me.league.name) + '</span>' : '')) + ' <button class="btn sm sec" id="out">Quitter</button></div></div></header>' +
-    '<main class="wrap" id="main"></main><p class="foot">Jeu de pronos entre amis · application non officielle<br><a href="#" id="chpw" style="color:#c3cde4">Changer mon mot de passe</a></p>' +
+    '<div class="shell"><aside class="rail" id="raill"></aside><main class="wrap" id="main"></main><aside class="rail" id="railr"></aside></div><p class="foot">Jeu de pronos entre amis · application non officielle<br><a href="#" id="chpw" style="color:#c3cde4">Changer mon mot de passe</a></p>' +
     '<nav class="tabs"><div class="in">' +
     (isAdm ? tabBtn('admin', '■', 'Admin') + tabBtn('picks', '◎', 'Test') : tabBtn('picks', '◎', 'Pronos')) + tabBtn('board', '▲', 'Joueurs') + tabBtn('chat', '✉', 'Chat') + tabBtn('race', '≋', 'Course') +
     '</div></nav>';
   $('#out').onclick = () => logout();
+  drawRails();
+  if (!S.board && !S._railBoard) { S._railBoard = true; api('board', { scope: S.scope }).then(b => { if (!S.board) S.board = b; drawRails(); }).catch(() => {}); }
   $('#chpw').onclick = e => {
     e.preventDefault();
     const old = (prompt('Mot de passe actuel :') || '').trim(); if (!old) return;
@@ -292,8 +414,9 @@ function tabBtn(t, ic, l) { return '<button data-t="' + t + '" class="' + (S.tab
 
 function authView() {
   const reg = S.authMode === 'register';
-  return '<div class="wrap"><div class="hero"><svg class="art" viewBox="0 0 320 170" aria-hidden="true"><rect width="320" height="170" fill="#1b2745"/><circle cx="238" cy="60" r="46" fill="#f9ed37"/><path d="M118 112 V22 L180 112Z" fill="#fff"/><path d="M110 112 V44 L64 112Z" fill="#82bebf"/><rect x="58" y="108" width="130" height="9" fill="#f9ed37"/><path d="M0 124 Q40 104 80 124 T160 124 T240 124 T320 124 V170 H0Z" fill="#82bebf"/><path d="M0 142 Q40 122 80 142 T160 142 T240 142 T320 142 V170 H0Z" fill="#fff"/><path d="M0 160 Q40 142 80 160 T160 160 T240 160 T320 160 V170 H0Z" fill="#f9ed37"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()"><h1>MPP<br><span>RDR 2026</span></h1>' +
+  return '<div class="authgrid"><div><div class="hero"><svg class="art" viewBox="0 0 320 170" aria-hidden="true"><rect width="320" height="170" fill="#1b2745"/><circle cx="238" cy="60" r="46" fill="#f9ed37"/><path d="M118 112 V22 L180 112Z" fill="#fff"/><path d="M110 112 V44 L64 112Z" fill="#82bebf"/><rect x="58" y="108" width="130" height="9" fill="#f9ed37"/><path d="M0 124 Q40 104 80 124 T160 124 T240 124 T320 124 V170 H0Z" fill="#82bebf"/><path d="M0 142 Q40 122 80 142 T160 142 T240 142 T320 142 V170 H0Z" fill="#fff"/><path d="M0 160 Q40 142 80 160 T160 160 T240 160 T320 160 V170 H0Z" fill="#f9ed37"/></svg><img class="logo" src="logo.png" alt="" onerror="this.remove()"><h1>MPP<br><span>RDR 2026</span></h1>' +
     '<p class="mute">Route du Rhum 2026 · Saint-Malo → Pointe-à-Pitre<br>Devine les podiums, grimpe au classement.</p></div>' +
+    '<div class="classstrip">' + ((S.cfg && S.cfg.classes) || []).map(c => '<div>' + boatIcon(c.id) + esc(c.label) + '</div>').join('') + '</div></div><div class="formcol">' +
     '<div class="tabsw"><button data-m="login" class="' + (!reg ? 'on' : '') + '">Connexion</button><button data-m="register" class="' + (reg ? 'on' : '') + '">Créer un compte</button></div>' +
     '<div class="card">' +
     '<div class="field"><label>Pseudo</label><input id="a_pseudo" autocomplete="username" maxlength="20"></div>' +
@@ -301,7 +424,7 @@ function authView() {
     (reg ? '<div class="field"><label>Numéro de téléphone</label><input id="a_phone" type="tel" autocomplete="tel" maxlength="20" placeholder="06 12 34 56 78"><div class="mute" style="margin-top:4px">Visible uniquement par l\'admin, pour te dépanner si tu perds ton mot de passe.</div></div>' : '') +
     (reg ? '<div class="field"><label>Code de ta ligue (donné par l\'admin)</label><input id="a_code" autocapitalize="characters"></div>' : '') +
     '<button class="btn" id="a_go">' + (reg ? 'Rejoindre la ligue' : 'Se connecter') + '</button>' +
-    (reg ? '' : '<p style="text-align:center;margin:12px 0 0"><a href="#" id="a_forgot" style="color:var(--navy);font-weight:700">Mot de passe oublié ?</a></p>') + '</div></div>';
+    (reg ? '' : '<p style="text-align:center;margin:12px 0 0"><a href="#" id="a_forgot" style="color:var(--navy);font-weight:700">Mot de passe oublié ?</a></p>') + '</div></div></div>';
 }
 
 function bindAuth() {
@@ -362,12 +485,12 @@ function viewPicks() {
   S.cfg.classes.forEach(c => {
     const d = S.draft[c.id] || [];
     const filled = d.filter(Boolean).length;
-    h += '<div class="card"><div class="row sp"><h3>' + esc(c.label) + ' <span class="mute">· top ' + c.n + '</span></h3>' +
+    h += '<div class="card"><div class="cardhead">' + boatIcon(c.id, '#eef6f6') + '<h3>' + esc(c.label) + ' <span class="mute">· top ' + c.n + '</span></h3>' +
       '<span class="pill ' + (filled === c.n ? 'ok' : 'warn') + '">' + filled + '/' + c.n + '</span></div>';
     for (let i = 0; i < c.n; i++) {
       const nm = d[i], info = nm ? skipperInfo(c.id, nm) : null;
       h += '<button class="slot ' + (nm ? 'filled' : '') + '" data-c="' + c.id + '" data-i="' + i + '" ' + (locked ? 'disabled' : '') + '>' +
-        '<span class="n">' + (i + 1) + '</span><span class="t">' + (nm ? '<b>' + esc(nm) + '</b><small>' + esc(info ? info.boat : '') + '</small>' : '<span class="mute">Choisir un skipper…</span>') + '</span>' +
+        '<span class="n">' + (i + 1) + '</span>' + (nm ? avatar(nm) : '') + '<span class="t">' + (nm ? '<b>' + esc(nm) + '</b><small>' + esc(info ? info.boat : '') + '</small>' : '<span class="mute">Choisir un skipper…</span>') + '</span>' +
         (nm && !locked ? '<span class="mute">✎</span>' : '') + '</button>';
     }
     h += '</div>';
@@ -405,7 +528,7 @@ function openPicker(cid, idx) {
     const used = d.filter((x, i) => x && i !== idx);
     let h = d[idx] ? '<button class="opt" data-clear="1" style="color:var(--bad)">✖ Vider cette place</button>' : '';
     S.cfg.skippers[cid].filter(s => !q || norm(s.name + ' ' + s.boat).indexOf(q) !== -1).forEach(s => {
-      h += '<button class="opt" data-n="' + esc(s.name) + '" ' + (used.indexOf(s.name) !== -1 ? 'disabled' : '') + '>' + esc(s.name) + '<small>' + esc(s.boat) + (used.indexOf(s.name) !== -1 ? ' · déjà choisi' : '') + '</small></button>';
+      h += '<button class="opt" data-n="' + esc(s.name) + '" ' + (used.indexOf(s.name) !== -1 ? 'disabled' : '') + '>' + avatar(s.name) + '<span class="tx">' + esc(s.name) + '<small>' + esc(s.boat) + (used.indexOf(s.name) !== -1 ? ' · déjà choisi' : '') + '</small></span></button>';
     });
     $('#lst', bg).innerHTML = h || '<p class="mute">Aucun résultat.</p>';
     bg.querySelectorAll('.opt').forEach(o => o.onclick = () => {
@@ -436,6 +559,8 @@ function viewBoard() {
     h += '<div class="tabsw"><button data-sc="mine" class="' + (b.scope !== 'all' ? 'on' : '') + '">' + esc(S.me.league.name) + '</button><button data-sc="all" class="' + (b.scope === 'all' ? 'on' : '') + '">Général</button></div>';
   }
   h += rulesCard(false);
+  const top3 = b.board.filter(x => x.total > 0).slice(0, 3);
+  if (top3.length) h += '<div class="card mobonly"><div class="podium">' + [top3[1], top3[0], top3[2]].filter(Boolean).map(x => '<div class="st p' + x.rank + '">' + avatar(x.pseudo) + '<div class="nm">' + esc(x.pseudo) + '</div><div class="pt">' + x.total + ' pts</div><div class="blk">' + x.rank + '</div></div>').join('') + '</div></div>';
   if (!b.locked) h += '<div class="card mute">Les pronos des autres joueurs seront visibles au départ de la course.</div>';
   const anyRank = Object.keys(b.ranking).some(k => b.ranking[k].length);
   if (b.locked && !anyRank) h += '<div class="card mute">En attente du premier classement officiel…</div>';
@@ -443,7 +568,7 @@ function viewBoard() {
     let mv = '<span class="mv eq">–</span>';
     if (x.prevRank && x.prevRank !== x.rank) mv = x.rank < x.prevRank ? '<span class="mv up">▲' + (x.prevRank - x.rank) + '</span>' : '<span class="mv down">▼' + (x.rank - x.prevRank) + '</span>';
     const medal = x.total > 0 ? (x.rank === 1 ? '🥇' : x.rank === 2 ? '🥈' : x.rank === 3 ? '🥉' : x.rank) : x.rank;
-    h += '<button class="lb ' + (x.pseudo === S.me.pseudo ? 'me' : '') + '" data-p="' + esc(x.pseudo) + '"><span class="r">' + medal + '</span>' + mv +
+    h += '<button class="lb ' + (x.pseudo === S.me.pseudo ? 'me' : '') + '" data-p="' + esc(x.pseudo) + '"><span class="r">' + medal + '</span>' + mv + avatar(x.pseudo) +
       '<span class="nm">' + esc(x.pseudo) + '</span><span class="pts">' + x.total + ' <small>pts</small></span></button>';
     if (S.open === x.pseudo) {
       const d = S.detail[x.pseudo];
