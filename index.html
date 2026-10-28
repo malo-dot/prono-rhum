@@ -125,6 +125,10 @@ nav.tabs button.on .ic{color:var(--teal)}
 .send{display:flex;gap:8px;margin-top:10px}
 .send .btn{width:auto}
 a.btn.wa{display:block;text-align:center;text-decoration:none;margin:10px 0}
+details.rules summary{cursor:pointer;font-weight:900;text-transform:uppercase;letter-spacing:.4px}
+details.rules p{margin:10px 0 4px}
+details.rules ul{margin:4px 0;padding-left:20px}
+details.rules li{margin:3px 0}
 </style>
 </head>
 <body>
@@ -313,15 +317,31 @@ function bindAuth() {
 /* ============ MES PRONOS ============ */
 function skipperInfo(cid, name) { return (S.cfg.skippers[cid] || []).find(s => s.name === name); }
 
+function rulesCard(open) {
+  const sc = S.cfg.scoring, mx = S.cfg.classes.reduce((a, c) => a + c.n * sc.exact + sc.winner + sc.perfect, 0);
+  const per = S.cfg.classes[0].n * sc.exact + sc.winner + sc.perfect;
+  return '<details class="card rules"' + (open ? ' open' : '') + '><summary>📖 Règles et comment gagner</summary>' +
+    '<p><b>Le principe :</b> pour chaque classe (' + S.cfg.classes.map(c => esc(c.label)).join(', ') + '), tu prédis le <b>top ' + S.cfg.classes[0].n + '</b> de la Route du Rhum, dans l\'ordre. Tu peux modifier tes pronos jusqu\'au départ (' + esc(fmtDate(S.cfg.lockISO)) + '), ensuite tout est verrouillé et chacun voit les pronos des autres.</p>' +
+    '<p><b>Les points, classe par classe :</b></p><ul>' +
+    '<li><b>+' + sc.exact + ' pts</b> : ton skipper finit exactement à la place que tu avais choisie.</li>' +
+    '<li><b>+' + sc.inTop + ' pts</b> : ton skipper est bien dans le top ' + S.cfg.classes[0].n + ', mais pas à la bonne place.</li>' +
+    '<li><b>+' + sc.winner + ' pts</b> de bonus si tu avais mis le bon vainqueur en 1re place.</li>' +
+    '<li><b>+' + sc.perfect + ' pts</b> de bonus si ton top est parfait (tous les skippers à la bonne place).</li></ul>' +
+    '<p>Maximum : ' + per + ' pts par classe, ' + mx + ' pts au total.</p>' +
+    '<p><b>Pendant la course :</b> le classement officiel est mis à jour régulièrement, donc les points et les flèches ▲▼ bougent jusqu\'à l\'arrivée. En cas d\'égalité, celui qui a le plus de skippers à la bonne place passe devant.</p>' +
+    '<p><b>Pour gagner :</b></p><ul>' +
+    '<li>Le vainqueur de chaque classe est le prono le plus rentable : ' + (sc.exact + sc.winner) + ' pts d\'un coup.</li>' +
+    '<li>Un skipper dans le top, même mal placé, rapporte quand même ' + sc.inTop + ' pts : mieux vaut miser sur des skippers solides que sur un pari risqué.</li>' +
+    '<li>Les 4 classes comptent autant : ne laisse aucune classe vide, un top incomplet ne s\'enregistre pas.</li></ul></details>';
+}
+
 function viewPicks() {
   const locked = isLocked();
   S._wasOpen = !locked;
   let h = '<div class="card dark"><div class="row sp"><div><div class="mute">' + (locked ? 'Pronos verrouillés' : 'Verrouillage dans') + '</div>' +
     '<div class="count" id="count">…</div></div><span class="pill ' + (locked ? 'bad' : 'ok') + '">' + (locked ? 'Course lancée' : 'Ouvert') + '</span></div>' +
     '<div class="mute" style="margin-top:6px">Départ : ' + esc(fmtDate(S.cfg.lockISO)) + '</div></div>';
-  const sc = S.cfg.scoring;
-  h += '<div class="card mute">Barème : <b>' + sc.exact + ' pts</b> bon skipper à la bonne place · <b>' + sc.inTop + ' pts</b> dans le top mais mal placé · ' +
-    '<b>+' + sc.winner + '</b> si tu trouves le vainqueur · <b>+' + sc.perfect + '</b> si ton top est parfait.</div>';
+  h += rulesCard(!Object.keys(S.picks || {}).length);
   S.cfg.classes.forEach(c => {
     const d = S.draft[c.id] || [];
     const filled = d.filter(Boolean).length;
@@ -397,6 +417,7 @@ function viewBoard() {
   } else if (b.leaguesCount > 1 && S.me.league) {
     h += '<div class="tabsw"><button data-sc="mine" class="' + (b.scope !== 'all' ? 'on' : '') + '">' + esc(S.me.league.name) + '</button><button data-sc="all" class="' + (b.scope === 'all' ? 'on' : '') + '">Général</button></div>';
   }
+  h += rulesCard(false);
   if (!b.locked) h += '<div class="card mute">Les pronos des autres joueurs seront visibles au départ de la course.</div>';
   const anyRank = Object.keys(b.ranking).some(k => b.ranking[k].length);
   if (b.locked && !anyRank) h += '<div class="card mute">En attente du premier classement officiel…</div>';
@@ -505,7 +526,6 @@ async function viewChat() {
   if (adm && lg) S.chatLeague = lg.id;
   let h = '<div class="row sp" style="margin-top:6px"><h2>Chat' + (lg ? ' · ' + esc(lg.name) : '') + '</h2></div>';
   if (adm) h += '<div class="seg">' + leagues.map(l => '<button data-cl="' + esc(l.id) + '" class="' + (l.id === S.chatLeague ? 'on' : '') + '">' + esc(l.name) + '</button>').join('') + '</div>';
-  if (lg && lg.wa) h += '<a class="btn sec wa" href="' + esc(lg.wa) + '" target="_blank" rel="noopener">💬 Rejoindre le groupe WhatsApp de la ligue</a>';
   h += '<div class="card chat"><div id="msgs" class="msgs"><p class="mute" style="text-align:center;padding:24px 0">Chargement…</p></div>' +
     '<div class="send"><input id="c_in" maxlength="300" placeholder="Ton message…" autocomplete="off"><button class="btn sm" id="c_go">Envoyer</button></div>' +
     (adm ? '<label class="row mute" style="margin-top:8px"><input type="checkbox" id="c_all" style="width:auto"> Annonce à toutes les ligues</label>' : '') + '</div>';
@@ -548,12 +568,11 @@ async function viewAdmin() {
 
   h += '<div class="card"><h3>Ligues</h3><p class="mute">Un joueur est dans une seule ligue. Il la rejoint avec son code à l\'inscription.</p>';
   a.leagues.forEach(l => {
-    h += '<div class="u"><div><b>' + esc(l.name) + '</b><div class="mute">Code : <b>' + esc(l.code) + '</b> · ' + l.count + ' joueur' + (l.count > 1 ? 's' : '') + (l.wa ? ' · WhatsApp ✔' : '') + '</div></div>' +
+    h += '<div class="u"><div><b>' + esc(l.name) + '</b><div class="mute">Code : <b>' + esc(l.code) + '</b> · ' + l.count + ' joueur' + (l.count > 1 ? 's' : '') + '</div></div>' +
       '<div class="row"><button class="btn sm sec" data-le="' + esc(l.id) + '">Modifier</button><button class="btn sm danger" data-ld="' + esc(l.id) + '">✖</button></div></div>';
   });
   h += '<div class="field"><label>Nouvelle ligue</label><input id="n_name" placeholder="Nom (ex. Famille)" maxlength="30"></div>' +
     '<div class="field"><input id="n_code" placeholder="Code à donner (ex. FAMILLE26)" autocapitalize="characters" maxlength="20"></div>' +
-    '<div class="field"><input id="n_wa" placeholder="Lien du groupe WhatsApp (optionnel)" maxlength="200"></div>' +
     '<button class="btn" id="n_add">Créer la ligue</button></div>';
 
   h += '<div class="card"><h3>Classement officiel (saisie manuelle)</h3><p class="mute">Sert de secours ou pour corriger. Le déclencheur automatique écrase ces valeurs si le mode manuel est désactivé.</p>';
@@ -597,15 +616,14 @@ async function viewAdmin() {
     toast(r.changed ? 'Classement publié ✔' : 'Aucun changement');
   });
   $('#n_add').onclick = () => guard(async () => {
-    await api('adminLeagueSave', { name: $('#n_name').value, code: $('#n_code').value, wa: $('#n_wa').value });
+    await api('adminLeagueSave', { name: $('#n_name').value, code: $('#n_code').value });
     S.adm = null; S.board = null; toast('Ligue créée ✔'); viewAdmin();
   });
   document.querySelectorAll('[data-le]').forEach(b => b.onclick = () => guard(async () => {
     const l = a.leagues.find(x => x.id === b.dataset.le);
     const name = prompt('Nom de la ligue :', l.name); if (name === null) return;
     const code = prompt('Code d\'inscription :', l.code); if (code === null) return;
-    const wa = prompt('Lien du groupe WhatsApp (vide = aucun) :', l.wa || ''); if (wa === null) return;
-    await api('adminLeagueSave', { id: l.id, name: name, code: code, wa: wa });
+    await api('adminLeagueSave', { id: l.id, name: name, code: code });
     S.adm = null; S.board = null; S.me = (await api('me')).me; toast('Ligue modifiée ✔'); viewAdmin();
   }));
   document.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => guard(async () => {

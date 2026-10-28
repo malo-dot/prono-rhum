@@ -23,8 +23,8 @@ const SCORING = {
 };
 
 const CLASSES = [
-  { id: 'ULTIM',   label: 'Ultim',       n: 3 },
-  { id: 'OCEAN50', label: 'Ocean Fifty', n: 3 },
+  { id: 'ULTIM',   label: 'Ultim',       n: 5 },
+  { id: 'OCEAN50', label: 'Ocean Fifty', n: 5 },
   { id: 'IMOCA',   label: 'IMOCA',       n: 5 },
   { id: 'CLASS40', label: 'Class40',     n: 5 }
 ];

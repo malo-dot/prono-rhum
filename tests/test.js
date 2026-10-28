@@ -23,13 +23,13 @@ throws('jeton d\'un autre refusé (pseudo modifié)', () => { const [p, s] = lea
 const sk = call('config', {}).skippers;
 ok('compte skippers: 8/10/22/49', () => assert.deepEqual([sk.ULTIM, sk.OCEAN50, sk.IMOCA, sk.CLASS40].map(a => a.length), [8, 10, 22, 49]));
 const nm = (c, i) => sk[c][i].name;
-throws('top incomplet refusé', () => call('savePicks', { token: lea.token, picks: { ULTIM: [nm('ULTIM', 0), nm('ULTIM', 1)] } }), /exactement 3/);
-throws('doublon refusé', () => call('savePicks', { token: lea.token, picks: { ULTIM: [nm('ULTIM', 0), nm('ULTIM', 0), nm('ULTIM', 1)] } }), /deux fois/);
-throws('skipper inconnu refusé', () => call('savePicks', { token: lea.token, picks: { ULTIM: ['Zorro', nm('ULTIM', 0), nm('ULTIM', 1)] } }), /inconnu/);
+throws('top incomplet refusé', () => call('savePicks', { token: lea.token, picks: { ULTIM: [nm('ULTIM', 0), nm('ULTIM', 1)] } }), /exactement 5/);
+throws('doublon refusé', () => call('savePicks', { token: lea.token, picks: { ULTIM: [0, 0, 1, 2, 3].map(i => nm('ULTIM', i)) } }), /deux fois/);
+throws('skipper inconnu refusé', () => call('savePicks', { token: lea.token, picks: { ULTIM: ['Zorro'].concat([0, 1, 2, 3].map(i => nm('ULTIM', i))) } }), /inconnu/);
 
-const U = [0, 1, 2].map(i => nm('ULTIM', i)), C40 = [0, 1, 2, 3, 4].map(i => nm('CLASS40', i));
+const U = [0, 1, 2, 3, 4].map(i => nm('ULTIM', i)), C40 = [0, 1, 2, 3, 4].map(i => nm('CLASS40', i));
 call('savePicks', { token: lea.token, picks: { ULTIM: U, CLASS40: C40 } });
-call('savePicks', { token: tom.token, picks: { ULTIM: [U[2], U[1], U[0]] } });
+call('savePicks', { token: tom.token, picks: { ULTIM: U.slice().reverse() } });
 ok('relecture des pronos', () => assert.deepEqual(call('me', { token: lea.token }).picks.ULTIM, U));
 ok('re-sauvegarde garde les autres classes', () => { call('savePicks', { token: lea.token, picks: { ULTIM: U } }); assert.equal(call('me', { token: lea.token }).picks.CLASS40.length, 5); });
 ok('une seule ligne par joueur dans Picks', () => assert.equal(X.rows_('Picks').length, 2));
@@ -46,11 +46,11 @@ throws('pronos verrouillés après départ', () => call('savePicks', { token: le
 call('adminSetRanking', { token: adm.token, ranking: { ULTIM: U, CLASS40: C40 } });
 let b = call('board', { token: tom.token });
 ok('premier classement: pas de flèches', () => assert.ok(b.board.every(x => x.prevRank === null)));
-ok('Lea 1ère: 28 + 38 = 66', () => { assert.equal(b.board[0].pseudo, 'Lea'); assert.equal(b.board[0].total, 66); });
-ok('Tom: 9', () => assert.equal(b.board.find(x => x.pseudo === 'Tom').total, 9));
-ok('détail visible après départ', () => { const d = call('detail', { token: tom.token, pseudo: 'Lea' }).details; assert.equal(d.ULTIM.pts, 28); });
+ok('Lea 1ère: 28 + 38 = 76', () => { assert.equal(b.board[0].pseudo, 'Lea'); assert.equal(b.board[0].total, 76); });
+ok('Tom: 13', () => assert.equal(b.board.find(x => x.pseudo === 'Tom').total, 13));
+ok('détail visible après départ', () => { const d = call('detail', { token: tom.token, pseudo: 'Lea' }).details; assert.equal(d.ULTIM.pts, 38); });
 
-call('adminSetRanking', { token: adm.token, ranking: { ULTIM: [U[2], U[1], U[0]] } });
+call('adminSetRanking', { token: adm.token, ranking: { ULTIM: U.slice().reverse() } });
 b = call('board', { token: tom.token });
 ok('flèches: prevRank mémorisé et cache invalidé', () => { const t = b.board.find(x => x.pseudo === 'Tom'); assert.equal(t.prevRank, 2); assert.ok(t.total > 9); });
 

@@ -1,5 +1,5 @@
 const load = require('./harness');
-const X = load(__dirname + '/../Code.gs'); X.setup();
+const X = load(__dirname + '/Code.gs'); X.setup();
 const call = (a, b) => X.handle_(Object.assign({ action: a }, b));
 const sk = call('config', {}).skippers;
 const pick = (c, n) => { const a = sk[c].map(s => s.name).sort(() => Math.random() - .5).slice(0, n); return a; };
@@ -12,12 +12,12 @@ function measure(label, fn, times) {
 }
 console.log('=== ' + N + ' joueurs, Sheet qui grossit ===');
 measure('inscription (écriture, sous verrou)', i => toks.push(call('register', { pseudo: 'Joueur' + i, pin: 'pin' + (1000 + i), code: 'RHUM2026' }).token), N);
-measure('enregistrer ses pronos (4 classes)', i => call('savePicks', { token: toks[i], picks: { ULTIM: pick('ULTIM', 3), OCEAN50: pick('OCEAN50', 3), IMOCA: pick('IMOCA', 5), CLASS40: pick('CLASS40', 5) } }), N);
+measure('enregistrer ses pronos (4 classes)', i => call('savePicks', { token: toks[i], picks: { ULTIM: pick('ULTIM', 5), OCEAN50: pick('OCEAN50', 5), IMOCA: pick('IMOCA', 5), CLASS40: pick('CLASS40', 5) } }), N);
 measure('connexion (avant: réécrivait toute la table)', i => call('login', { pseudo: 'Joueur' + i, pin: 'pin' + (1000 + i) }), N);
 measure('ouvrir l\'app (config + me)', i => { call('config', {}); call('me', { token: toks[i] }); }, N);
 X.setConfig_('lockISO', new Date(Date.now() - 1000).toISOString());
 const adm = call('login', { pseudo: 'Malo', pin: 'admin1' });
-call('adminSetRanking', { token: adm.token, ranking: { ULTIM: pick('ULTIM', 3), IMOCA: pick('IMOCA', 5), CLASS40: pick('CLASS40', 5), OCEAN50: pick('OCEAN50', 3) } });
+call('adminSetRanking', { token: adm.token, ranking: { ULTIM: pick('ULTIM', 5), IMOCA: pick('IMOCA', 5), CLASS40: pick('CLASS40', 5), OCEAN50: pick('OCEAN50', 5) } });
 measure('rafraîchir le classement (' + N + ' joueurs x 10 fois)', i => call('board', { token: toks[i % N] }), N * 10);
 measure('ouvrir le détail d\'un joueur', i => call('detail', { token: toks[i], pseudo: 'Joueur' + ((i + 7) % N) }), N);
 const lb = call('board', { token: toks[0] });
