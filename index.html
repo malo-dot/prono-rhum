@@ -64,6 +64,11 @@ nav.tabs button.on .ic{color:var(--teal)}
 
 .slot{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#eef6f6;border:2px dashed var(--navy);border-radius:var(--radius);padding:10px 12px;margin-top:10px;color:var(--navy)}
 .slot.filled{border-style:solid;background:#fff}
+.slot{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;position:relative}
+.slot.drag{z-index:20;box-shadow:0 10px 24px rgba(0,0,0,.35);transform-origin:center;opacity:.97;border-color:var(--teal);transition:none!important}
+.slot.shift{transition:transform .15s}
+.slot.lift{background:#fffbd0}
+.hint{font-size:13px;color:var(--mute);text-align:center;margin:8px 0 0}
 .slot .n{flex:0 0 32px;height:32px;border-radius:50%;background:var(--navy);color:var(--yellow);display:grid;place-items:center;font-weight:900}
 .slot:nth-of-type(1) .n{background:var(--yellow);color:var(--navy);box-shadow:inset 0 0 0 2px var(--navy)}
 .slot .t{flex:1;min-width:0}
@@ -298,7 +303,7 @@ function logout(silent) {
   render();
 }
 
-const BUILD = '2026-10-28-a';
+const BUILD = '2026-10-29-a';
 /* Auto-mise à jour : si une version plus récente du site est en ligne, on recharge une fois (évite l'ancienne version en cache du téléphone) */
 async function checkUpdate() {
   try {
@@ -546,9 +551,11 @@ function viewPicks() {
     h += '</div>';
   });
   if (!locked) h += '<button class="btn" id="save">Enregistrer mes pronos</button><p class="mute" style="text-align:center">Tu peux modifier jusqu\'au départ.</p>';
+  if (!locked) h = h.replace('<button class="btn" id="save">', '<p class="hint">💡 Reste appuyé sur un skipper, puis glisse-le vers le haut ou le bas pour changer sa place.</p><button class="btn" id="save">');
   $('#main').innerHTML = h;
   tick();
-  document.querySelectorAll('.slot').forEach(b => b.onclick = () => openPicker(b.dataset.c, +b.dataset.i));
+  document.querySelectorAll('.slot').forEach(b => b.onclick = () => { if (Date.now() < S._noClick) return; openPicker(b.dataset.c, +b.dataset.i); });
+  if (!locked) enableReorder();
   const sv = $('#save');
   if (sv) sv.onclick = () => guard(async () => {
     sv.disabled = true;
@@ -558,6 +565,67 @@ function viewPicks() {
       S.picks = JSON.parse(JSON.stringify(S.draft));
       toast('Pronos enregistrés ✔');
     } finally { sv.disabled = false; }
+  });
+}
+
+/* Appui long sur un skipper, puis glisser pour le monter ou le descendre (tactile + souris) */
+function enableReorder() {
+  document.querySelectorAll('.slot.filled').forEach(el => {
+    let timer = null, drag = null, sx = 0, sy = 0;
+    const cid = el.dataset.c, from = +el.dataset.i;
+    const pt = e => (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    const start = e => {
+      const p = pt(e); sx = p.clientX; sy = p.clientY;
+      cancel();
+      timer = setTimeout(() => {
+        timer = null;
+        const sibs = Array.from(document.querySelectorAll('.slot[data-c="' + cid + '"]'));
+        drag = { sibs: sibs, rects: sibs.map(x => x.getBoundingClientRect()), to: from };
+        el.classList.add('drag'); sibs.forEach(x => { if (x !== el) x.classList.add('shift'); });
+        try { navigator.vibrate && navigator.vibrate(25); } catch (er) {}
+      }, 420);
+    };
+    const move = e => {
+      const p = pt(e);
+      if (!drag) { if (timer && (Math.abs(p.clientY - sy) > 9 || Math.abs(p.clientX - sx) > 9)) cancel(); return; }
+      if (e.cancelable) e.preventDefault();
+      const dy = p.clientY - sy;
+      el.style.transform = 'translateY(' + dy + 'px)';
+      const cy = drag.rects[from].top + drag.rects[from].height / 2 + dy;
+      let to = from;
+      drag.rects.forEach((r, i) => { if (cy > r.top && cy < r.bottom) to = i; });
+      if (cy < drag.rects[0].top) to = 0; else if (cy > drag.rects[drag.rects.length - 1].bottom) to = drag.rects.length - 1;
+      drag.to = to;
+      const step = drag.rects[1] ? drag.rects[1].top - drag.rects[0].top : 0;
+      drag.sibs.forEach((x, i) => {
+        if (x === el) return;
+        let off = 0;
+        if (from < to && i > from && i <= to) off = -step;
+        if (from > to && i < from && i >= to) off = step;
+        x.style.transform = off ? 'translateY(' + off + 'px)' : '';
+      });
+    };
+    const end = () => {
+      cancel();
+      if (!drag) return;
+      const to = drag.to; drag = null;
+      S._noClick = Date.now() + 400;
+      if (to !== from) {
+        const n = S.cfg.classes.find(c => c.id === cid).n, d = S.draft[cid] = (S.draft[cid] || []).slice(0, n);
+        while (d.length < n) d.push('');
+        const it = d.splice(from, 1)[0]; d.splice(to, 0, it);
+        const y = window.scrollY; viewPicks(); window.scrollTo(0, y);
+        toast('Skipper déplacé en place ' + (to + 1) + ' (pense à enregistrer)');
+      } else viewPicks();
+    };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+    el.addEventListener('mousedown', e => { if (e.button !== 0) return; start(e);
+      const mm = ev => move(ev), mu = () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); end(); };
+      document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu); });
+    el.addEventListener('contextmenu', e => e.preventDefault());
   });
 }
 
