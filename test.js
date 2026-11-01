@@ -1,6 +1,6 @@
 const assert = require('assert'), load = require('./harness');
 const X = load(__dirname + '/Code.gs');
-X.setup();
+X.setup(); X.setConfig_('lockISO', new Date(Date.now() + 86400e3).toISOString());
 const call = (action, b) => X.handle_(Object.assign({ action }, b));
 let n = 0; const ok = (name, fn) => { fn(); n++; console.log('✔', name); };
 const throws = (name, fn, re) => ok(name, () => assert.throws(fn, re));
@@ -193,3 +193,8 @@ ok('changement de mot de passe par le joueur', () => {
   assert.equal(call('login', { pseudo: 'Zoe', pin: 'encore12' }).me.pseudo, 'Zoe');
 });
 console.log('\n' + n + ' tests OK');
+
+ok('parseSource_ : format officiel routedurhum', () => {
+  const p = X.parseSource_(JSON.stringify({ classes: [{ cle: 'ultim', lignes: [{ rang: 2, prenom: 'B', nom: 'BB  ', statut: 'RAC' }, { rang: 1, prenom: 'A', nom: 'AA', statut: 'RAC' }, { rang: 3, prenom: 'C', nom: 'CC', statut: 'ABD' }] }, { cle: 'vintage-mono', lignes: [] }] }));
+  assert.deepEqual(p.ULTIM, ['A AA', 'B BB']); assert.equal(p.IMOCA, undefined);
+});

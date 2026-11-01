@@ -762,6 +762,18 @@ function adminRefresh_(b) { requireAdmin_(b); return refreshRanking(); }
 function parseSource_(text) {
   const data = JSON.parse(text);
   const out = {};
+  // Format officiel routedurhum.com/_functions/classement : { classes: [ { cle:'ultim', lignes:[ { rang, prenom, nom, statut } ] } ] }
+  if (data && Array.isArray(data.classes)) {
+    const al = { 'ultim': 'ULTIM', 'ocean-fifty': 'OCEAN50', 'imoca': 'IMOCA', 'class40': 'CLASS40' };
+    data.classes.forEach(c => {
+      const id = al[String(c.cle || '').toLowerCase()];
+      if (!id || !Array.isArray(c.lignes)) return;
+      out[id] = c.lignes.filter(l => l && Number(l.rang) > 0 && !/^(abd|abn|dnf|dns|dsq|ret|abo)/i.test(String(l.statut || '').trim()))
+        .sort((x, y) => Number(x.rang) - Number(y.rang))
+        .map(l => String(l.prenom || '').trim() + ' ' + String(l.nom || '').trim());
+    });
+    return out;
+  }
   const alias = { ultim: 'ULTIM', ocean50: 'OCEAN50', oceanfifty: 'OCEAN50', multi50: 'OCEAN50', imoca: 'IMOCA', class40: 'CLASS40' };
   const key = k => alias[String(k).toLowerCase().replace(/[^a-z0-9]/g, '')];
   if (Array.isArray(data)) {
